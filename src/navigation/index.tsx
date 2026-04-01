@@ -20,6 +20,16 @@ const PlaceholderScreen = ({ name }: { name: string }) => (
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+const ReportPlaceholder = () => {
+  const { t } = useTranslation();
+  return <PlaceholderScreen name={t('report_incident')} />;
+};
+
+const AlertsPlaceholder = () => {
+  const { t } = useTranslation();
+  return <PlaceholderScreen name={t('alerts')} />;
+};
+
 function MainTabNavigator() {
   const { t } = useTranslation();
   return (
@@ -39,7 +49,7 @@ function MainTabNavigator() {
       />
       <Tab.Screen
         name="Report"
-        component={() => <PlaceholderScreen name={t('report_incident')} />}
+        component={ReportPlaceholder}
         options={{
           tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
           title: t('report_incident'),
@@ -47,7 +57,7 @@ function MainTabNavigator() {
       />
       <Tab.Screen
         name="Alerts"
-        component={() => <PlaceholderScreen name={t('alerts')} />}
+        component={AlertsPlaceholder}
         options={{
           tabBarIcon: ({ color, size }) => <AlertTriangle color={color} size={size} />,
           title: t('alerts'),

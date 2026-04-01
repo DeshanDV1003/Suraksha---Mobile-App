@@ -2,6 +2,7 @@ import React from 'react';
 import { Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './src/i18n';
+import './src/global.css';
 import AppNavigation from './src/navigation';
 import { StatusBar } from 'expo-status-bar';
 
