@@ -8,9 +8,12 @@ Before running the app, ensure you have the following installed on your machine:
 
 1.  **Node.js** (LTS version recommended)
 2.  **npm** (comes with Node.js)
-3.  **Expo Go** app on your physical device (iOS or Android)
+3.  **Expo Go** app on your physical device (iOS or Android)  -- **Highly recommended for lower-end PCs!**
     -   [Download for Android](https://play.google.com/store/apps/details?id=host.exp.exponent)
     -   [Download for iOS](https://apps.apple.com/app/expo-go/id982107779)
+
+> [!TIP]
+> **Low-Resource Computers:** If your computer is struggling with emulators (e.g., using an i3 processor), using a **physical phone** with Expo Go is the best way to run the app. It offloads all the work to your phone, keeping your laptop fast.
 
 ## Getting Started
 
