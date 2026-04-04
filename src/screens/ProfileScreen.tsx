@@ -1,40 +1,61 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Avatar, List, Divider } from 'react-native-paper';
+import { Header } from '../components/common/Header';
+import { UserProfileCard } from '../components/ProfileScreen/UserProfileCard';
+import { StatsCard } from '../components/common/StatsCard';
+import { SettingsList } from '../components/ProfileScreen/SettingsList';
 
 export default function ProfileScreen() {
-  const { t } = useTranslation();
+    const navigation = useNavigation<any>();
+    const { t, i18n } = useTranslation();
 
-  return (
-    <View className="flex-1 bg-white">
-      <View className="items-center py-10 bg-primary">
-        <Avatar.Icon size={80} icon="account" />
-        <Text className="text-white text-xl font-bold mt-4">Guest User</Text>
-        <Text className="text-blue-100 italic">Colombo, Sri Lanka</Text>
-      </View>
+    return (
+        <View className="flex-1 bg-white">
+            <Header title={t('profile.title')} />
+            
+            <ScrollView className="flex-1 px-6 pt-4">
+                <UserProfileCard 
+                    name="Deshan Silva" 
+                    role={t('tasks.role')} 
+                    location="Colombo" 
+                    verifiedLabel={t('profile.verified')}
+                />
 
-      <List.Section>
-        <List.Subheader>Account Settings</List.Subheader>
-        <List.Item
-          title="Edit Profile"
-          left={(props) => <List.Icon {...props} icon="account-edit" />}
-        />
-        <List.Item
-          title="My Reports"
-          left={(props) => <List.Icon {...props} icon="file-document" />}
-        />
-        <Divider />
-        <List.Subheader>App</List.Subheader>
-        <List.Item
-          title="Notifications"
-          left={(props) => <List.Icon {...props} icon="bell" />}
-        />
-        <List.Item
-          title="Help & Support"
-          left={(props) => <List.Icon {...props} icon="help-circle" />}
-        />
-      </List.Section>
-    </View>
-  );
+                <View className="flex-row justify-between mb-8">
+                    <StatsCard 
+                        label={t('profile.reports_submitted')} 
+                        count={23} 
+                        variant="white"
+                        className="mr-2"
+                        customCountColor="text-[#2563EB]"
+                    />
+                    <StatsCard 
+                        label={t('profile.tasks_completed')} 
+                        count={15} 
+                        variant="white"
+                        className="ml-2"
+                        customCountColor="text-[#10B981]"
+                    />
+                </View>
+
+                <SettingsList 
+                    onLanguagePress={() => navigation.navigate('Language')}
+                    onLogoutPress={() => {}}
+                    labels={{
+                        settings: t('profile.settings'),
+                        language: t('profile.language'),
+                        notifications: t('profile.notifications'),
+                        location: t('profile.location_services'),
+                        privacy: t('profile.privacy'),
+                        terms: t('profile.terms'),
+                        emergency: t('profile.emergency_contacts'),
+                        logout: t('profile.logout'),
+                        currentLanguage: i18n.language === 'en' ? 'English' : i18n.language === 'si' ? 'සිංහල' : 'தமிழ்'
+                    }}
+                />
+            </ScrollView>
+        </View>
+    );
 }
