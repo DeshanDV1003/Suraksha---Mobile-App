@@ -28,22 +28,22 @@ export const RecentAlertItem: React.FC<RecentAlertItemProps> = ({
     return (
         <TouchableOpacity 
             activeOpacity={0.7}
-            className={`flex-row p-4 rounded-3xl mb-4 border-l-[6px] ${bgColors[variant]} ${borderColors[variant]} shadow-md items-center shadow-gray-200`}
+            className={`flex-row p-5 rounded-[28px] mb-4 border-l-[8px] ${bgColors[variant]} ${borderColors[variant]} shadow-sm items-center`}
         >
             <View className="flex-1">
-                <Text className="text-xl font-bold text-gray-900 mb-2">{title}</Text>
+                <Text className="text-2xl font-extrabold text-[#1E3A8A] mb-2">{title}</Text>
                 
                 <View className="flex-row items-center">
-                    <MapPin size={16} color="#4B5563" />
-                    <Text className="text-gray-600 text-sm ml-1 mr-4">{location}</Text>
+                    <MapPin size={18} color="#64748B" />
+                    <Text className="text-[#64748B] text-base font-semibold ml-1.5 mr-5">{location}</Text>
                     
-                    <Clock size={16} color="#4B5563" />
-                    <Text className="text-gray-600 text-sm ml-1">{time}</Text>
+                    <Clock size={18} color="#64748B" />
+                    <Text className="text-[#64748B] text-base font-semibold ml-1.5">{time}</Text>
                 </View>
             </View>
 
             {/* Status dot */}
-            <View className={`w-3 h-3 rounded-full ${variant === 'danger' ? 'bg-red-500' : 'bg-orange-500'}`} />
+            <View className={`w-4 h-4 rounded-full ${variant === 'danger' ? 'bg-[#F43F5E]' : 'bg-[#F97316]'}`} />
         </TouchableOpacity>
     );
 };

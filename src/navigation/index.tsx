@@ -21,6 +21,13 @@ import AlertsScreen from '../screens/AlertsScreen';
 import TasksScreen from '../screens/TasksScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import LanguageScreen from '../screens/LanguageScreen';
+import FamilySafetyScreen from '../screens/FamilySafetyScreen';
+import ReliefCampsScreen from '../screens/ReliefCampsScreen';
+import ReliefTokenScreen from '../screens/ReliefTokenScreen';
+import PreparednessScreen from '../screens/PreparednessScreen';
+import EducationScreen from '../screens/EducationScreen';
+import DamageReportScreen from '../screens/DamageReportScreen';
+import DonateScreen from '../screens/DonateScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -33,34 +40,55 @@ function TabBadge({ count }: { count: number }) {
     );
 }
 
+function HomeStackNavigator() {
+    return (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="HomeScreen" component={HomeScreen} />
+            <Stack.Screen name="FamilySafety" component={FamilySafetyScreen} />
+            <Stack.Screen name="ReliefCamps" component={ReliefCampsScreen} />
+            <Stack.Screen name="ReliefToken" component={ReliefTokenScreen} />
+            <Stack.Screen name="Preparedness" component={PreparednessScreen} />
+            <Stack.Screen name="Education" component={EducationScreen} />
+            <Stack.Screen name="DamageReport" component={DamageReportScreen} />
+            <Stack.Screen name="Donate" component={DonateScreen} />
+        </Stack.Navigator>
+    );
+}
+
 function MainTabNavigator() {
     const { t } = useTranslation();
 
     return (
         <Tab.Navigator
             screenOptions={{
-                tabBarActiveTintColor: '#2563EB', // Suraksha Blue
-                tabBarInactiveTintColor: '#9CA3AF',
+                tabBarActiveTintColor: '#2563EB',
+                tabBarInactiveTintColor: '#94A3B8',
                 headerShown: false,
                 tabBarStyle: {
-                    height: 90,
-                    paddingBottom: 25,
-                    paddingTop: 10,
+                    height: 100,
+                    paddingBottom: 35,
+                    paddingTop: 15,
                     borderTopWidth: 1,
-                    borderTopColor: '#F3F4F6',
+                    borderTopColor: '#F1F5F9',
                     backgroundColor: '#FFFFFF',
+                    elevation: 10,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, y: -2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 10,
                 },
                 tabBarLabelStyle: {
-                    fontSize: 12,
-                    fontWeight: '700',
+                    fontSize: 13,
+                    fontWeight: '800',
+                    marginTop: 5,
                 }
             }}
         >
             <Tab.Screen
                 name="Home"
-                component={HomeScreen}
+                component={HomeStackNavigator}
                 options={{
-                    tabBarIcon: ({ color }) => <Home color={color} size={28} />,
+                    tabBarIcon: ({ color }) => <Home color={color} size={32} strokeWidth={2.5} />,
                     title: t('common.home') || 'Home',
                 }}
             />
@@ -68,8 +96,8 @@ function MainTabNavigator() {
                 name="Report"
                 component={ReportScreen}
                 options={{
-                    tabBarIcon: ({ color }) => <AlertTriangle color={color} size={28} />,
-                    title: t('report.title') || 'Report',
+                    tabBarIcon: ({ color }) => <CircleAlert color={color} size={32} strokeWidth={2.5} />,
+                    title: t('common.report') || 'Report',
                 }}
             />
             <Tab.Screen
@@ -78,7 +106,7 @@ function MainTabNavigator() {
                 options={{
                     tabBarIcon: ({ color }) => (
                         <View>
-                            <Bell color={color} size={28} />
+                            <Bell color={color} size={32} strokeWidth={2.5} />
                             <TabBadge count={3} />
                         </View>
                     ),
@@ -91,7 +119,7 @@ function MainTabNavigator() {
                 options={{
                     tabBarIcon: ({ color }) => (
                         <View>
-                            <ClipboardList color={color} size={28} />
+                            <ClipboardList color={color} size={32} strokeWidth={2.5} />
                             <TabBadge count={2} />
                         </View>
                     ),
@@ -102,7 +130,7 @@ function MainTabNavigator() {
                 name="Profile"
                 component={ProfileScreen}
                 options={{
-                    tabBarIcon: ({ color }) => <User color={color} size={28} />,
+                    tabBarIcon: ({ color }) => <User color={color} size={32} strokeWidth={2.5} />,
                     title: t('profile.title') || 'Profile',
                 }}
             />

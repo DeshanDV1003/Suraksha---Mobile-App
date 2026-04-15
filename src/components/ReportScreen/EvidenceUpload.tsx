@@ -18,26 +18,30 @@ export const EvidenceUpload: React.FC<EvidenceUploadProps> = ({
     videoLabel
 }) => {
     return (
-        <View className="mb-6">
-            <Text className="text-xl font-bold text-gray-900 mb-4">{label}</Text>
+        <View className="mb-8">
+            <Text className="text-xl font-bold text-[#1E3A8A] mb-4">{label}</Text>
             
             <View className="flex-row">
                 <TouchableOpacity 
                     onPress={onPhotoPress}
                     activeOpacity={0.7}
-                    className="flex-1 bg-gray-50 border-2 border-dashed border-gray-300 rounded-3xl p-6 items-center justify-center mr-2 h-32"
+                    className="flex-1 bg-white border-2 border-dashed border-[#CBD5E1] rounded-[24px] p-6 items-center justify-center mr-2 h-40"
                 >
-                    <Camera size={28} color="#4B5563" />
-                    <Text className="text-gray-600 font-bold mt-2">{photoLabel}</Text>
+                    <View className="mb-3">
+                        <Camera size={40} color="#64748B" strokeWidth={1.5} />
+                    </View>
+                    <Text className="text-[#64748B] text-lg font-bold">{photoLabel}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity 
                     onPress={onVideoPress}
                     activeOpacity={0.7}
-                    className="flex-1 bg-gray-50 border-2 border-dashed border-gray-300 rounded-3xl p-6 items-center justify-center ml-2 h-32"
+                    className="flex-1 bg-white border-2 border-dashed border-[#CBD5E1] rounded-[24px] p-6 items-center justify-center ml-2 h-40"
                 >
-                    <Video size={28} color="#4B5563" />
-                    <Text className="text-gray-600 font-bold mt-2">{videoLabel}</Text>
+                    <View className="mb-3">
+                        <Video size={40} color="#64748B" strokeWidth={1.5} />
+                    </View>
+                    <Text className="text-[#64748B] text-lg font-bold">{videoLabel}</Text>
                 </TouchableOpacity>
             </View>
         </View>

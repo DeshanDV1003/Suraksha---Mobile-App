@@ -10,6 +10,7 @@ interface CustomButtonProps {
     icon?: LucideIcon;
     className?: string;
     iconColor?: string;
+    textClassName?: string;
 }
 
 export const CustomButton: React.FC<CustomButtonProps> = ({
@@ -18,7 +19,8 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
     variant = 'primary',
     icon: Icon,
     className = '',
-    iconColor
+    iconColor,
+    textClassName
 }) => {
     const isGradient = variant === 'primary' || variant === 'danger';
     const isOutline = variant === 'outline';
@@ -54,13 +56,13 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
                     />
                 </View>
             )}
-            <Text className={`text-lg font-bold ${isOutline ? 'text-[#EF4444]' :
+            <Text className={`${textClassName || `text-lg font-bold ${isOutline ? 'text-[#EF4444]' :
                 variant === 'white' ? 'text-[#EF4444]' :
                     variant === 'success' ? 'text-[#059669]' :
                         variant === 'warning' ? 'text-[#D97706]' :
                             variant === 'info' ? 'text-[#2563EB]' :
                                 'text-white'
-                }`}>
+                }`}`}>
                 {label}
             </Text>
         </View>

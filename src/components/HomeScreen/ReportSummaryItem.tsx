@@ -25,23 +25,23 @@ export const ReportSummaryItem: React.FC<ReportSummaryItemProps> = ({
     return (
         <TouchableOpacity 
             activeOpacity={0.7}
-            className="bg-white p-4 rounded-3xl mb-4 shadow-md border border-gray-200"
+            className="bg-white p-5 rounded-[28px] mb-4 shadow-sm border border-gray-100"
         >
-            <View className="flex-row justify-between items-start mb-2">
-                <Text className="text-xl font-bold text-gray-900">{title}</Text>
+            <View className="flex-row justify-between items-start mb-4">
+                <Text className="text-2xl font-extrabold text-[#1E3A8A]">{title}</Text>
                 
-                <View className={`px-4 py-1.5 rounded-full ${
+                <View className={`px-4 py-2 rounded-full ${
                     statusVariant === 'pending' ? 'bg-[#FEF3C7]' : 'bg-[#DBEAFE]'
                 }`}>
                     <View className="flex-row items-center">
                         {statusVariant === 'pending' ? (
-                            <Clock size={14} color="#D97706" />
+                            <Clock size={16} color="#D97706" />
                         ) : (
-                            <View className="w-3.5 h-3.5 rounded-full border border-[#2563EB] items-center justify-center">
-                                <View className="w-1.5 h-1.5 rounded-full bg-[#2563EB]" />
+                            <View className="w-4 h-4 rounded-full border border-[#2563EB] items-center justify-center">
+                                <View className="w-2 h-2 rounded-full bg-[#2563EB]" />
                             </View>
                         )}
-                        <Text className={`font-bold ml-1.5 ${
+                        <Text className={`font-extrabold ml-2 ${
                             statusVariant === 'pending' ? 'text-[#D97706]' : 'text-[#2563EB]'
                         }`}>
                             {statusLabel}
@@ -52,11 +52,11 @@ export const ReportSummaryItem: React.FC<ReportSummaryItemProps> = ({
 
             <View className="flex-row justify-between items-center">
                 <View className="flex-row items-center">
-                    <MapPin size={16} color="#4B5563" />
-                    <Text className="text-gray-600 text-sm ml-1">{location}</Text>
+                    <MapPin size={18} color="#64748B" />
+                    <Text className="text-[#64748B] text-base font-semibold ml-1.5">{location}</Text>
                 </View>
                 
-                <Text className="text-gray-400 font-bold text-sm">{reportId}</Text>
+                <Text className="text-[#64748B] font-extrabold text-base">{reportId}</Text>
             </View>
         </TouchableOpacity>
     );
