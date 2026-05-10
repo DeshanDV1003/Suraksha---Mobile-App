@@ -1,7 +1,8 @@
 import React from 'react';
-import { ScrollView, View, Alert } from 'react-native';
+import { ScrollView, View, Alert, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
+import { authService, incidentService, userService } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Header } from '../components/common/Header';
 import { UserProfileCard } from '../components/ProfileScreen/UserProfileCard';
@@ -44,6 +45,21 @@ export default function ProfileScreen() {
     }, []);
 
     const handleLogout = async () => {
+        const logoutAction = async () => {
+            await AsyncStorage.multiRemove(['token', 'user']);
+            navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }],
+            });
+        };
+
+        if (Platform.OS === 'web') {
+            if (window.confirm('Are you sure you want to logout?')) {
+                logoutAction();
+            }
+            return;
+        }
+
         Alert.alert(
             t('profile.logout'),
             'Are you sure you want to logout?',
@@ -52,13 +68,7 @@ export default function ProfileScreen() {
                 { 
                     text: t('profile.logout'), 
                     style: 'destructive',
-                    onPress: async () => {
-                        await AsyncStorage.multiRemove(['token', 'user']);
-                        navigation.reset({
-                            index: 0,
-                            routes: [{ name: 'Login' }],
-                        });
-                    }
+                    onPress: logoutAction
                 }
             ]
         );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useNavigation } from '@react-navigation/native';
 import { authService } from '../services/api';
@@ -25,9 +25,18 @@ export default function RegisterScreen() {
         setLoading(true);
         try {
             await authService.register({ name, email, phone, password });
+            
+            const successMsg = 'Your account has been created. Please log in to continue.';
+            
+            if (Platform.OS === 'web') {
+                window.alert('Registration Successful\n' + successMsg);
+                navigation.navigate('Login');
+                return;
+            }
+
             Alert.alert(
                 'Registration Successful',
-                'Your account has been created. Please log in to continue.',
+                successMsg,
                 [{ text: 'Login', onPress: () => navigation.navigate('Login') }]
             );
         } catch (error: any) {
