@@ -32,18 +32,18 @@ export default function ReliefTokenScreen() {
 
     return (
         <View className="flex-1 bg-white">
-            <Header 
-                title={t('token.title')} 
-                subtitle={t('token.subtitle')} 
-                showBack 
+            <Header
+                title={t('token.title')}
+                subtitle={t('token.subtitle')}
+                showBack
             />
 
-            <ScrollView 
-                className="flex-1 px-6 pt-4" 
+            <ScrollView
+                className="flex-1 px-6 pt-4"
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 40 }}
             >
-                <VerifiedTokenCard 
+                <VerifiedTokenCard
                     id={t('token.id_label')}
                     userName={t('token.user_name')}
                     familyInfo={t('token.family_info')}
@@ -57,7 +57,7 @@ export default function ReliefTokenScreen() {
                 </View>
 
                 {historyItems.map((item, index) => (
-                    <CollectionHistoryItem 
+                    <CollectionHistoryItem
                         key={index}
                         title={item.title}
                         location={item.location}
@@ -67,7 +67,7 @@ export default function ReliefTokenScreen() {
                 ))}
 
                 {/* How it works Information Card */}
-                <View 
+                <View
                     style={{ borderRadius: 32 }}
                     className="bg-[#EFF6FF] border border-[#BFDBFE] p-8 mt-8 mb-10"
                 >

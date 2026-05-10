@@ -1,11 +1,36 @@
 import React from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Text, ActivityIndicator, RefreshControl } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/common/Header';
 import { ReliefCampCard } from '../components/ReliefCampsScreen/ReliefCampCard';
+import { campService } from '../services/api';
 
 export default function ReliefCampsScreen() {
     const { t } = useTranslation();
+    const [camps, setCamps] = React.useState<any[]>([]);
+    const [loading, setLoading] = React.useState(true);
+    const [refreshing, setRefreshing] = React.useState(false);
+
+    const fetchCamps = async () => {
+        try {
+            const res = await campService.getCamps();
+            setCamps(res.data);
+        } catch (error) {
+            console.error('Failed to fetch camps:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    };
+
+    React.useEffect(() => {
+        fetchCamps();
+    }, []);
+
+    const onRefresh = () => {
+        setRefreshing(true);
+        fetchCamps();
+    };
 
     const campLabels = {
         occupancy: t('camps.occupancy'),
@@ -22,33 +47,6 @@ export default function ReliefCampsScreen() {
         }
     };
 
-    const reliefCamps = [
-        {
-            name: "Colombo Community Center",
-            distance: "1.2 km",
-            currentOccupancy: 65,
-            maxOccupancy: 100,
-            services: ["food", "water", "medical", "charging"] as const,
-            waitTime: "15 min"
-        },
-        {
-            name: "Dehiwala School Hall",
-            distance: "2.8 km",
-            currentOccupancy: 92,
-            maxOccupancy: 120,
-            services: ["food", "water", "toilets", "child-care"] as const,
-            waitTime: "30 min"
-        },
-        {
-            name: "Wellawatta Temple",
-            distance: "3.5 km",
-            currentOccupancy: 120,
-            maxOccupancy: 120,
-            services: ["food", "water"] as const,
-            waitTime: t('camps.full')
-        }
-    ];
-
     return (
         <View className="flex-1 bg-white">
             <Header 
@@ -61,19 +59,32 @@ export default function ReliefCampsScreen() {
                 className="flex-1 px-6 pt-4" 
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 40 }}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
             >
-                {reliefCamps.map((camp, index) => (
-                    <ReliefCampCard 
-                        key={index}
-                        name={camp.name}
-                        distance={camp.distance}
-                        currentOccupancy={camp.currentOccupancy}
-                        maxOccupancy={camp.maxOccupancy}
-                        services={camp.services}
-                        waitTime={camp.waitTime}
-                        labels={campLabels}
-                    />
-                ))}
+                {loading && !refreshing ? (
+                    <View className="py-20 items-center">
+                        <ActivityIndicator size="large" color="#A855F7" />
+                    </View>
+                ) : camps.length === 0 ? (
+                    <View className="py-20 items-center">
+                        <Text className="text-gray-400 font-bold uppercase tracking-widest text-xs">No Relief Camps Found</Text>
+                    </View>
+                ) : (
+                    camps.map((camp, index) => (
+                        <ReliefCampCard 
+                            key={camp.id}
+                            name={camp.name}
+                            distance={camp.distance || "Location Unknown"}
+                            currentOccupancy={camp.currentOccupancy}
+                            maxOccupancy={camp.totalCapacity}
+                            services={camp.services as any}
+                            waitTime={camp.waitTime || "N/A"}
+                            labels={campLabels}
+                        />
+                    ))
+                )}
             </ScrollView>
         </View>
     );

@@ -11,6 +11,7 @@ interface CustomButtonProps {
     className?: string;
     iconColor?: string;
     textClassName?: string;
+    disabled?: boolean;
 }
 
 export const CustomButton: React.FC<CustomButtonProps> = ({
@@ -20,7 +21,8 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
     icon: Icon,
     className = '',
     iconColor,
-    textClassName
+    textClassName,
+    disabled = false
 }) => {
     const isGradient = variant === 'primary' || variant === 'danger';
     const isOutline = variant === 'outline';
@@ -37,7 +39,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
                         variant === 'warning' ? 'bg-[#FEF3C7]' :
                             variant === 'info' ? 'bg-[#DBEAFE]' :
                                 ''
-                }`}
+                } ${disabled ? 'opacity-50' : ''}`}
         >
             {Icon && (
                 <View className="mr-2">
@@ -72,6 +74,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
         <TouchableOpacity
             onPress={onPress}
             activeOpacity={0.8}
+            disabled={disabled}
             className={`rounded-2xl overflow-hidden ${className}`}
         >
             {isGradient ? (

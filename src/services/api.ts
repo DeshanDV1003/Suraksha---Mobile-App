@@ -1,0 +1,132 @@
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Replace with your local machine's IP address when testing on a real device
+const API_BASE_URL = 'http://192.168.8.121:3002/api'; // Pointing to the new Mobile Backend
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+api.interceptors.request.use(async (config) => {
+  const token = await AsyncStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export const authService = {
+  login: (data: any) => api.post('/auth/login', data),
+  register: (data: any) => api.post('/auth/register', data),
+  getProfile: () => api.get('/auth/profile'),
+};
+
+export const incidentService = {
+  getIncidents: () => api.get('/incidents'),
+  getIncidentById: (id: string) => api.get(`/incidents/${id}`),
+  createIncident: (data: any) => api.post('/incidents', data),
+  updateStatus: (id: string, status: string) => api.patch(`/incidents/${id}/status`, { status }),
+  deleteIncident: (id: string) => api.delete(`/incidents/${id}`),
+  report: (data: any) => api.post('/incidents', data),
+  getMyReports: () => api.get('/incidents/my'),
+  getAll: () => api.get('/incidents/all'),
+};
+
+export const alertService = {
+  createAlert: (data: any) => api.post('/alerts', data),
+  getAlerts: () => api.get('/alerts'),
+  deactivateAlert: (id: string) => api.patch(`/alerts/${id}/deactivate`),
+  deleteAlert: (id: string) => api.delete(`/alerts/${id}`),
+};
+
+export const campService = {
+  getCamps: () => api.get('/camps'),
+  createCamp: (data: any) => api.post('/camps', data),
+};
+
+export const userService = {
+  getUsers: () => api.get('/users'),
+  getMe: () => api.get('/users/me'),
+  updateProfile: (data: any) => api.patch('/users/profile', data),
+  updateRole: (id: string, role: string) => api.patch(`/users/${id}/role`, { role }),
+  deleteUser: (id: string) => api.delete(`/users/${id}`),
+};
+
+export const resourceService = {
+  getResources: () => api.get('/resources'),
+  createResource: (data: any) => api.post('/resources', data),
+  updateStatus: (id: string, status: string) => api.patch(`/resources/${id}/status`, { status }),
+};
+
+export const tokenService = {
+  getTokens: () => api.get('/tokens'),
+  createToken: (data: any) => api.post('/tokens', data),
+  useToken: (code: string) => api.post('/tokens/use', { code }),
+};
+
+export const volunteerService = {
+  upsertProfile: (data: any) => api.post('/volunteers/profile', data),
+  getProfile: () => api.get('/volunteers/profile'),
+  getMyTasks: () => api.get('/volunteers/tasks'),
+  updateTaskStatus: (taskId: string, status: string) => api.patch('/volunteers/tasks/status', { taskId, status }),
+};
+
+export const helpRequestService = {
+  createRequest: (data: any) => api.post('/help-requests', data),
+  getRequests: () => api.get('/help-requests'),
+  registerVerifier: (data: any) => api.post('/help-requests/verifier/register', data),
+  verifyAction: (data: any) => api.post('/help-requests/verifier/verify', data),
+};
+
+export const reliefTokenService = {
+  issueToken: (data: any) => api.post('/relief-tokens/issue', data),
+  claimToken: (data: any) => api.post('/relief-tokens/claim', data),
+  recordDistribution: (data: any) => api.post('/relief-tokens/distribution', data),
+};
+
+export const damageAssessmentService = {
+  reportDamage: (data: any) => api.post('/assessments/damage', data),
+  getAssessments: () => api.get('/assessments/damage'),
+};
+
+export const missingPersonService = {
+  reportMissing: (data: any) => api.post('/missing-persons', data),
+  getMissing: () => api.get('/missing-persons'),
+  updateStatus: (id: string, status: string) => api.patch(`/missing-persons/${id}/status`, { status }),
+  delete: (id: string) => api.delete(`/missing-persons/${id}`),
+};
+
+export const supportService = {
+  createRequest: (data: any) => api.post('/support', data),
+  getRequests: () => api.get('/support'),
+  updateStatus: (id: string, data: any) => api.patch(`/support/${id}/status`, data),
+};
+
+export const dashboardService = {
+  getStats: () => api.get('/dashboard/stats'),
+};
+
+export const analyticsService = {
+  getOperationalIntelligence: () => api.get('/analytics/operational-intelligence'),
+};
+
+export const auditService = {
+  getLogs: () => api.get('/audit'),
+};
+
+export const notificationService = {
+  getNotifications: () => api.get('/notifications/my'),
+  markAsRead: (id: string) => api.patch(`/notifications/${id}/read`),
+};
+
+export const locationService = {
+  logLocation: (data: any) => api.post('/location/log', data),
+  getUserLocation: (userId: string) => api.get(`/location/user/${userId}`),
+};
+
+export default api;
+

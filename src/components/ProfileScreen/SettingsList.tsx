@@ -62,6 +62,11 @@ const SettingItem: React.FC<SettingItemProps> = ({
 interface SettingsListProps {
     onLanguagePress: () => void;
     onLogoutPress: () => void;
+    onNotificationsPress: () => void;
+    onLocationPress: () => void;
+    onPrivacyPress: () => void;
+    onTermsPress: () => void;
+    onEmergencyPress: () => void;
     labels: {
         settings: string;
         language: string;
@@ -78,6 +83,11 @@ interface SettingsListProps {
 export const SettingsList: React.FC<SettingsListProps> = ({ 
     onLanguagePress, 
     onLogoutPress,
+    onNotificationsPress,
+    onLocationPress,
+    onPrivacyPress,
+    onTermsPress,
+    onEmergencyPress,
     labels 
 }) => {
     return (
@@ -95,27 +105,27 @@ export const SettingsList: React.FC<SettingsListProps> = ({
             <SettingItem 
                 icon={Bell} 
                 label={labels.notifications} 
-                onPress={() => {}} 
+                onPress={onNotificationsPress} 
             />
             <SettingItem 
                 icon={MapPin} 
                 label={labels.location} 
-                onPress={() => {}} 
+                onPress={onLocationPress} 
             />
             <SettingItem 
                 icon={Shield} 
                 label={labels.privacy} 
-                onPress={() => {}} 
+                onPress={onPrivacyPress} 
             />
             <SettingItem 
                 icon={FileText} 
                 label={labels.terms} 
-                onPress={() => {}} 
+                onPress={onTermsPress} 
             />
             <SettingItem 
                 icon={Phone} 
                 label={labels.emergency} 
-                onPress={() => {}} 
+                onPress={onEmergencyPress} 
             />
 
             <SettingItem 

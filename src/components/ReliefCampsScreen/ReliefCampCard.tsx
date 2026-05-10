@@ -8,7 +8,7 @@ interface ReliefCampCardProps {
     distance: string;
     currentOccupancy: number;
     maxOccupancy: number;
-    services: Array<'food' | 'water' | 'medical' | 'charging' | 'toilets' | 'child-care'>;
+    services: ReadonlyArray<'food' | 'water' | 'medical' | 'charging' | 'toilets' | 'child-care'>;
     waitTime: string;
     onGetDirections?: () => void;
     labels: {

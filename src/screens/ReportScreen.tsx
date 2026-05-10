@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View, Text } from 'react-native';
+import { ScrollView, View, Text, Modal, TouchableOpacity as RNTouchableOpacity, FlatList, Alert } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/common/Header';
 import { IncidentForm } from '../components/ReportScreen/IncidentForm';
@@ -9,7 +9,8 @@ import { CustomButton } from '../components/common/CustomButton';
 import { VoiceReport } from '../components/ReportScreen/VoiceReport';
 import { NeedsSelection } from '../components/ReportScreen/NeedsSelection';
 import { SendHorizonal, ChevronLeft } from 'lucide-react-native';
-import { Modal, TouchableOpacity as RNTouchableOpacity, FlatList } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { incidentService } from '../services/api';
 
 export default function ReportScreen() {
     const { t } = useTranslation();
@@ -17,6 +18,8 @@ export default function ReportScreen() {
     const [peopleAffected, setPeopleAffected] = useState('');
     const [incidentType, setIncidentType] = useState('');
     const [isTypeModalVisible, setIsTypeModalVisible] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const navigation = useNavigation<any>();
 
     const incidentTypes = [
         { id: 'flood', label: t('report.flood') || 'Flood' },
@@ -30,6 +33,39 @@ export default function ReportScreen() {
     const handleSelectType = (label: string) => {
         setIncidentType(label);
         setIsTypeModalVisible(false);
+    };
+
+    const handleSubmit = async () => {
+        if (!incidentType || !description) {
+            Alert.alert(t('common.error'), "Please select an incident type and provide a description.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const data = {
+                title: incidentType,
+                description: description,
+                location: "Colombo 7, Sri Lanka", // This could be dynamic from LocationPicker
+                latitude: 6.9271,
+                longitude: 79.8612,
+                category: incidentType,
+                peopleAffected: parseInt(peopleAffected) || 0,
+            };
+
+            await incidentService.report(data);
+            
+            Alert.alert(
+                t('common.success'), 
+                "Your report has been submitted and is being processed by our system.",
+                [{ text: "OK", onPress: () => navigation.navigate('Home') }]
+            );
+        } catch (error) {
+            console.error('Failed to submit report:', error);
+            Alert.alert(t('common.error'), "Failed to submit report. Please check your connection.");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -81,8 +117,9 @@ export default function ReportScreen() {
                 />
                 
                 <CustomButton 
-                    label={t('common.submit') || "Submit Report"} 
-                    onPress={() => {}} 
+                    label={loading ? "Submitting..." : (t('common.submit') || "Submit Report")} 
+                    onPress={handleSubmit} 
+                    disabled={loading}
                     variant="primary"
                     icon={SendHorizonal}
                     className="mb-4 h-20 rounded-[20px] shadow-lg"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/common/Header';
 import { DamageTypeCard } from '../components/DamageReportScreen/DamageTypeCard';
@@ -14,21 +14,56 @@ import {
     Send 
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { damageAssessmentService } from '../services/api';
+import { useNavigation } from '@react-navigation/native';
 
 export default function DamageReportScreen() {
     const { t } = useTranslation();
-    const [selectedType, setSelectedType] = useState('business');
+    const [selectedType, setSelectedType] = useState('RESIDENTIAL');
     const [description, setDescription] = useState('');
     const [hasInsurance, setHasInsurance] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const navigation = useNavigation<any>();
 
     const damageTypes = [
-        { id: 'house_full', label: t('damage.house_full'), icon: Home },
-        { id: 'house_partial', label: t('damage.house_partial'), icon: Home },
-        { id: 'crop', label: t('damage.crop'), icon: Package },
-        { id: 'business', label: t('damage.business'), icon: Briefcase },
-        { id: 'road', label: t('damage.road'), icon: GitBranch },
-        { id: 'utility', label: t('damage.utility'), icon: Zap },
+        { id: 'RESIDENTIAL', label: t('damage.house_full'), icon: Home },
+        { id: 'AGRICULTURAL', label: t('damage.crop'), icon: Package },
+        { id: 'COMMERCIAL', label: t('damage.business'), icon: Briefcase },
+        { id: 'INFRASTRUCTURE', label: t('damage.road'), icon: GitBranch },
+        { id: 'UTILITY', label: t('damage.utility'), icon: Zap },
     ];
+
+    const handleSubmit = async () => {
+        if (!description) {
+            Alert.alert(t('common.error'), "Please provide a description of the damage.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const data = {
+                category: selectedType,
+                notes: description,
+                location: "Colombo 7, Sri Lanka", // Placeholder
+                latitude: 6.9271,
+                longitude: 79.8612,
+                structuralDamage: 'MODERATE', // Placeholder
+                estimatedLoss: 0,
+            };
+
+            await damageAssessmentService.reportDamage(data);
+            Alert.alert(
+                t('common.success'), 
+                "Your damage assessment has been submitted for review.",
+                [{ text: "OK", onPress: () => navigation.navigate('Home') }]
+            );
+        } catch (error) {
+            console.error('Failed to submit damage report:', error);
+            Alert.alert(t('common.error'), "Failed to submit damage assessment.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <View className="flex-1 bg-white">
@@ -92,7 +127,8 @@ export default function DamageReportScreen() {
                 />
 
                 <TouchableOpacity 
-                    onPress={() => {}}
+                    onPress={handleSubmit}
+                    disabled={loading}
                     className="mb-10 overflow-hidden"
                     style={{ borderRadius: 24 }}
                 >
@@ -102,10 +138,16 @@ export default function DamageReportScreen() {
                         end={{ x: 1, y: 0.5 }}
                         className="py-6 flex-row items-center justify-center"
                     >
-                        <Send size={24} color="white" strokeWidth={2.5} />
-                        <Text className="text-white text-xl font-black ml-4 uppercase">
-                            {t('damage.submit')}
-                        </Text>
+                        {loading ? (
+                            <ActivityIndicator color="white" />
+                        ) : (
+                            <>
+                                <Send size={24} color="white" strokeWidth={2.5} />
+                                <Text className="text-white text-xl font-black ml-4 uppercase">
+                                    {t('damage.submit')}
+                                </Text>
+                            </>
+                        )}
                     </LinearGradient>
                 </TouchableOpacity>
             </ScrollView>
