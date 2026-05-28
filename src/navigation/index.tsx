@@ -14,6 +14,7 @@ import {
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
+import OfflineBanner from '../components/OfflineBanner';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -173,24 +174,27 @@ export default function AppNavigation() {
     }
 
     return (
-        <NavigationContainer>
-            <Stack.Navigator 
-                id="root-stack"
-                initialRouteName={userToken ? "MainTabs" : "Login"}
-                screenOptions={{ headerShown: false }}
-            >
-                <Stack.Screen name="Login" component={LoginScreen} />
-                <Stack.Screen name="Register" component={RegisterScreen} />
-                <Stack.Screen name="MainTabs" component={MainTabNavigator} />
-                <Stack.Screen
-                    name="Language"
-                    component={LanguageScreen}
-                    options={{
-                        animation: 'slide_from_right'
-                    }}
-                />
-                <Stack.Screen name="ReportStack" component={ReportScreen} />
-            </Stack.Navigator>
-        </NavigationContainer>
+        <View style={{ flex: 1 }}>
+            <OfflineBanner />
+            <NavigationContainer>
+                <Stack.Navigator 
+                    id="root-stack"
+                    initialRouteName={userToken ? "MainTabs" : "Login"}
+                    screenOptions={{ headerShown: false }}
+                >
+                    <Stack.Screen name="Login" component={LoginScreen} />
+                    <Stack.Screen name="Register" component={RegisterScreen} />
+                    <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+                    <Stack.Screen
+                        name="Language"
+                        component={LanguageScreen}
+                        options={{
+                            animation: 'slide_from_right'
+                        }}
+                    />
+                    <Stack.Screen name="ReportStack" component={ReportScreen} />
+                </Stack.Navigator>
+            </NavigationContainer>
+        </View>
     );
 }

@@ -8,7 +8,10 @@ import AppNavigation from './src/navigation';
 import { StatusBar } from 'expo-status-bar';
 import { socketService } from './src/services/socket';
 import { registerForPushNotificationsAsync } from './src/services/notificationService';
-
+import { openDatabase } from './src/storage/localDB';
+import { startNetworkMonitoring } from './src/services/networkMonitor';
+import { registerBackgroundSync } from './src/services/backgroundSync';
+import { preloadCriticalData } from './src/services/preloadService';
 const queryClient = new QueryClient();
 
 const theme = {
@@ -22,6 +25,14 @@ const theme = {
 
 export default function App() {
   React.useEffect(() => {
+    async function init() {
+      await openDatabase();
+      await startNetworkMonitoring();
+      await registerBackgroundSync();
+      await preloadCriticalData();
+    }
+    init();
+
     socketService.connect();
     registerForPushNotificationsAsync();
     return () => socketService.disconnect();

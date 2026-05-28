@@ -14,13 +14,18 @@ export const createReport = async (req: any, res: Response) => {
         latitude,
         longitude,
         category,
-        reporterId: req.user.userId
+        reporterId: req.user.userId,
+        createdAt: req.body.offlineCreatedAt ? new Date(req.body.offlineCreatedAt) : new Date()
       }
     });
 
     // Notify via socket (handled in index.ts)
     const io = req.app.get('socketio');
-    if (io) io.emit('new-incident', report);
+    if (io) io.emit('new-incident', {
+      ...report,
+      wasOffline: req.body.wasOfflineSubmission || false,
+      originalTime: report.createdAt
+    });
 
     // Broadcast Push Notification for high severity
     const users = await prisma.user.findMany({

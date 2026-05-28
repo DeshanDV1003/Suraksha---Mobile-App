@@ -13,6 +13,7 @@ import tokenRoutes from './routes/tokenRoutes';
 import infoRoutes from './routes/infoRoutes';
 import dashboardRoutes from './routes/dashboardRoutes';
 import uploadRoutes from './routes/uploadRoutes';
+import { offlineSyncMiddleware } from './middleware/offlineSyncMiddleware';
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ const io = new Server(httpServer, {
 
 app.use(cors());
 app.use(express.json());
+app.use(offlineSyncMiddleware);
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.get('/api/health', (req, res) => {

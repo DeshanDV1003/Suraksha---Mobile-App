@@ -11,14 +11,15 @@ import { NeedsSelection } from '../components/ReportScreen/NeedsSelection';
 import { SendHorizonal, ChevronLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { incidentService } from '../services/api';
-
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 export default function ReportScreen() {
     const { t } = useTranslation();
     const [description, setDescription] = useState('');
     const [peopleAffected, setPeopleAffected] = useState('');
     const [incidentType, setIncidentType] = useState('');
     const [isTypeModalVisible, setIsTypeModalVisible] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const { submit, status } = useOfflineSubmit('INCIDENT_REPORT', '/api/incidents');
+    const loading = status === 'submitting';
     const navigation = useNavigation<any>();
 
     const incidentTypes = [
@@ -41,7 +42,6 @@ export default function ReportScreen() {
             return;
         }
 
-        setLoading(true);
         try {
             const data = {
                 title: incidentType,
@@ -53,18 +53,24 @@ export default function ReportScreen() {
                 peopleAffected: parseInt(peopleAffected) || 0,
             };
 
-            await incidentService.report(data);
+            const result = await submit(data);
             
-            Alert.alert(
-                t('common.success'), 
-                "Your report has been submitted and is being processed by our system.",
-                [{ text: "OK", onPress: () => navigation.navigate('Home') }]
-            );
+            if (result.queued) {
+                Alert.alert(
+                    t('common.success') || 'Success', 
+                    "Saved offline — will send when connected.",
+                    [{ text: "OK", onPress: () => navigation.navigate('Home') }]
+                );
+            } else {
+                Alert.alert(
+                    t('common.success') || 'Success', 
+                    "Your report has been submitted and is being processed by our system.",
+                    [{ text: "OK", onPress: () => navigation.navigate('Home') }]
+                );
+            }
         } catch (error) {
             console.error('Failed to submit report:', error);
-            Alert.alert(t('common.error'), "Failed to submit report. Please check your connection.");
-        } finally {
-            setLoading(false);
+            Alert.alert(t('common.error') || 'Error', "Failed to submit report. Please check your connection.");
         }
     };
 
