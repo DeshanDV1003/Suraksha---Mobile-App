@@ -5,6 +5,9 @@ import { Header } from '../components/common/Header';
 import { VerifiedTokenCard } from '../components/ReliefTokenScreen/VerifiedTokenCard';
 import { CollectionHistoryItem } from '../components/ReliefTokenScreen/CollectionHistoryItem';
 import { ChevronRight } from 'lucide-react-native';
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
+import { ActivityIndicator } from 'react-native';
+import { useToast } from '../context/ToastContext';
 
 export default function ReliefTokenScreen() {
     const { t } = useTranslation();
@@ -30,6 +33,23 @@ export default function ReliefTokenScreen() {
         }
     ];
 
+    const { submit, status } = useOfflineSubmit('RELIEF_TOKEN_CLAIM', '/api/relief-tokens/claim');
+    const toast = useToast();
+
+    const handleClaimToken = async () => {
+        try {
+            const result = await submit({ reason: "Emergency request for family" });
+            if (result.queued) {
+                toast.warning(t('common.offline_queued') || 'Queued', 'You are offline. Token request will be submitted when you reconnect.');
+            } else {
+                toast.success(t('common.success') || 'Success', 'Relief token request submitted successfully.');
+            }
+        } catch (error) {
+            console.error('Failed to claim token:', error);
+            toast.error(t('common.error') || 'Error', 'Failed to request token.');
+        }
+    };
+
     return (
         <View className="flex-1 bg-white">
             <Header
@@ -49,6 +69,18 @@ export default function ReliefTokenScreen() {
                     familyInfo={t('token.family_info')}
                     verifiedLabel={t('token.verified')}
                 />
+
+                <TouchableOpacity 
+                    onPress={handleClaimToken}
+                    disabled={status === 'submitting'}
+                    className="bg-[#2563EB] rounded-2xl p-4 mt-4 items-center shadow-lg"
+                >
+                    {status === 'submitting' ? (
+                        <ActivityIndicator color="white" />
+                    ) : (
+                        <Text className="text-white font-bold text-lg">{t('token.claim_new') || 'Request New Token'}</Text>
+                    )}
+                </TouchableOpacity>
 
                 <View className="mt-4 mb-6">
                     <Text className="text-3xl font-extrabold text-[#1E3A8A]">

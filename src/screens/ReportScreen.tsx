@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, View, Text, Modal, TouchableOpacity as RNTouchableOpacity, FlatList, Alert } from 'react-native';
+import { ScrollView, View, Text, Modal, TouchableOpacity as RNTouchableOpacity, FlatList } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/common/Header';
 import { IncidentForm } from '../components/ReportScreen/IncidentForm';
@@ -12,6 +12,7 @@ import { SendHorizonal, ChevronLeft } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 import { incidentService } from '../services/api';
 import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
+import { useToast } from '../context/ToastContext';
 export default function ReportScreen() {
     const { t } = useTranslation();
     const [description, setDescription] = useState('');
@@ -19,6 +20,7 @@ export default function ReportScreen() {
     const [incidentType, setIncidentType] = useState('');
     const [isTypeModalVisible, setIsTypeModalVisible] = useState(false);
     const { submit, status } = useOfflineSubmit('INCIDENT_REPORT', '/api/incidents');
+    const toast = useToast();
     const loading = status === 'submitting';
     const navigation = useNavigation<any>();
 
@@ -38,7 +40,7 @@ export default function ReportScreen() {
 
     const handleSubmit = async () => {
         if (!incidentType || !description) {
-            Alert.alert(t('common.error'), "Please select an incident type and provide a description.");
+            toast.error(t('common.error') || "Error", "Please select an incident type and provide a description.");
             return;
         }
 
@@ -56,21 +58,21 @@ export default function ReportScreen() {
             const result = await submit(data);
             
             if (result.queued) {
-                Alert.alert(
+                toast.warning(
                     t('common.success') || 'Success', 
-                    "Saved offline — will send when connected.",
-                    [{ text: "OK", onPress: () => navigation.navigate('Home') }]
+                    "Saved offline — will send when connected."
                 );
+                navigation.navigate('Home');
             } else {
-                Alert.alert(
+                toast.success(
                     t('common.success') || 'Success', 
-                    "Your report has been submitted and is being processed by our system.",
-                    [{ text: "OK", onPress: () => navigation.navigate('Home') }]
+                    "Your report has been submitted and is being processed by our system."
                 );
+                navigation.navigate('Home');
             }
         } catch (error) {
             console.error('Failed to submit report:', error);
-            Alert.alert(t('common.error') || 'Error', "Failed to submit report. Please check your connection.");
+            toast.error(t('common.error') || 'Error', "Failed to submit report. Please check your connection.");
         }
     };
 

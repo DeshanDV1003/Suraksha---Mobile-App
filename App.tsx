@@ -5,6 +5,7 @@ import { Platform, View, StyleSheet } from 'react-native';
 import './src/i18n';
 import './src/global.css';
 import AppNavigation from './src/navigation';
+import { ToastProvider } from './src/context/ToastContext';
 import { StatusBar } from 'expo-status-bar';
 import { socketService } from './src/services/socket';
 import { registerForPushNotificationsAsync } from './src/services/notificationService';
@@ -12,7 +13,64 @@ import { openDatabase } from './src/storage/localDB';
 import { startNetworkMonitoring } from './src/services/networkMonitor';
 import { registerBackgroundSync } from './src/services/backgroundSync';
 import { preloadCriticalData } from './src/services/preloadService';
+import * as Location from 'expo-location';
+import { Alert } from 'react-native';
+import geohash from 'ngeohash';
+
 const queryClient = new QueryClient();
+
+import { io } from 'socket.io-client';
+
+function GlobalMobileAlertListener() {
+  React.useEffect(() => {
+    // Explicitly connect to the main Web Backend port (3001) where alerts are dispatched
+    const alertSocket = io('http://192.168.8.121:3001');
+    let locationSubscription: any;
+
+    const setupLocationTracking = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('Permission to access location was denied for alerts');
+          return;
+        }
+
+        locationSubscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, distanceInterval: 1000 },
+          (location) => {
+            const lat = location.coords.latitude;
+            const lon = location.coords.longitude;
+            const sectorId = geohash.encode(lat, lon, 5);
+            // Emit join_sector whenever location changes (or initially)
+            alertSocket.emit('join_sector', sectorId);
+          }
+        );
+      } catch (err) {
+        console.warn("Could not start location tracking", err);
+      }
+    };
+
+    setupLocationTracking();
+
+    // Listen to the new-alert socket event
+    alertSocket.on('new-alert', (alert: any) => {
+      // If we received this event, the backend targeted our specific sector room!
+      Alert.alert(
+        `🚨 TARGETED AREA ALERT: ${alert.title}`,
+        alert.message
+      );
+    });
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+      alertSocket.disconnect();
+    };
+  }, []);
+
+  return null;
+}
 
 const theme = {
   ...MD3LightTheme,
@@ -41,8 +99,11 @@ export default function App() {
   const content = (
     <QueryClientProvider client={queryClient}>
       <PaperProvider theme={theme}>
+        <GlobalMobileAlertListener />
         <StatusBar style="auto" />
-        <AppNavigation />
+        <ToastProvider>
+          <AppNavigation />
+        </ToastProvider>
       </PaperProvider>
     </QueryClientProvider>
   );
@@ -69,9 +130,9 @@ const styles = StyleSheet.create({
   },
   webContent: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 430,
     height: '100%',
-    maxHeight: 850,
+    maxHeight: 932,
     backgroundColor: '#fff',
     borderRadius: 40,
     overflow: 'hidden',

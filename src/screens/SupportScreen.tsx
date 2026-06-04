@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { HeartPulse, Plus, X, Shield, Users, Clock, MessageSquare, Heart, Sparkles, ChevronLeft } from 'lucide-react-native';
 import { supportService } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
+import { useToast } from '../context/ToastContext';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -43,9 +45,12 @@ export default function SupportScreen() {
         fetchData();
     }, []);
 
+    const { submit } = useOfflineSubmit('PSYCHOLOGICAL_SUPPORT', '/api/support');
+    const toast = useToast();
+
     const handleSubmit = async () => {
         if (!formData.description) {
-            Alert.alert(t('common.error') || 'Error', t('support.fill_desc') || 'Please share how we can help');
+            toast.error(t('common.error') || 'Error', t('support.fill_desc') || 'Please share how we can help');
             return;
         }
 
@@ -56,14 +61,20 @@ export default function SupportScreen() {
 
         try {
             setIsSubmitting(true);
-            await supportService.createRequest(data);
-            Alert.alert(t('common.success') || 'Request Submitted', t('support.request_success') || 'A counselor will contact you soon.');
+            const result = await submit(data);
+            
+            if (result.queued) {
+                toast.warning(t('common.offline_queued') || 'Queued', 'You are offline. Your request will be submitted when you reconnect.');
+            } else {
+                toast.success(t('common.success') || 'Request Submitted', t('support.request_success') || 'A counselor will contact you soon.');
+            }
+            
             setShowModal(false);
             setFormData({ type: 'TRAUMA_CARE', description: '', urgency: 'MEDIUM', anonymous: false, location: '', affectedCount: '1' });
             fetchData();
         } catch (error) {
             console.error('Failed to submit support request:', error);
-            Alert.alert(t('common.error') || 'Error', t('common.report_fail') || 'Failed to submit request');
+            toast.error(t('common.error') || 'Error', t('common.report_fail') || 'Failed to submit request');
         } finally {
             setIsSubmitting(false);
         }

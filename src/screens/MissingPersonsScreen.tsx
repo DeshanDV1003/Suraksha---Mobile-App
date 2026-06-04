@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { UserSearch, Plus, X, MapPin, Clock, User, Phone, ChevronLeft } from 'lucide-react-native';
 import { missingPersonService } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
+import { useToast } from '../context/ToastContext';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -39,9 +41,12 @@ export default function MissingPersonsScreen() {
         fetchData();
     }, []);
 
+    const { submit } = useOfflineSubmit('MISSING_PERSON_REPORT', '/api/missing-persons');
+    const toast = useToast();
+
     const handleSubmit = async () => {
         if (!formData.name || !formData.age || !formData.description || !formData.lastSeen) {
-            Alert.alert(t('common.error') || 'Error', t('common.fill_all') || 'Please fill all fields');
+            toast.error(t('common.error') || 'Error', t('common.fill_all') || 'Please fill all fields');
             return;
         }
 
@@ -53,14 +58,20 @@ export default function MissingPersonsScreen() {
 
         try {
             setIsSubmitting(true);
-            await missingPersonService.reportMissing(data);
-            Alert.alert(t('common.success') || 'Success', t('common.report_success') || 'Missing person reported successfully');
+            const result = await submit(data);
+            
+            if (result.queued) {
+                toast.warning(t('common.offline_queued') || 'Queued', 'You are offline. Report will be submitted when you reconnect.');
+            } else {
+                toast.success(t('common.success') || 'Success', t('common.report_success') || 'Missing person reported successfully');
+            }
+            
             setShowModal(false);
             setFormData({ name: '', age: '', description: '', lastSeen: '' });
             fetchData();
         } catch (error) {
             console.error('Failed to report missing person:', error);
-            Alert.alert(t('common.error') || 'Error', t('common.report_fail') || 'Failed to report missing person');
+            toast.error(t('common.error') || 'Error', t('common.report_fail') || 'Failed to report missing person');
         } finally {
             setIsSubmitting(false);
         }

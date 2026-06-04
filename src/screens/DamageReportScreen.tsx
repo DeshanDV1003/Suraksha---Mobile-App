@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/common/Header';
 import { DamageTypeCard } from '../components/DamageReportScreen/DamageTypeCard';
@@ -14,8 +14,10 @@ import {
     Send 
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { damageAssessmentService } from '../services/api';
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 import { useNavigation } from '@react-navigation/native';
+import { useToast } from '../context/ToastContext';
+import * as Location from 'expo-location';
 
 export default function DamageReportScreen() {
     const { t } = useTranslation();
@@ -33,33 +35,51 @@ export default function DamageReportScreen() {
         { id: 'UTILITY', label: t('damage.utility'), icon: Zap },
     ];
 
+    const { submit } = useOfflineSubmit('DAMAGE_ASSESSMENT', '/api/assessments/damage');
+    const toast = useToast();
+
     const handleSubmit = async () => {
         if (!description) {
-            Alert.alert(t('common.error'), "Please provide a description of the damage.");
+            toast.error(t('common.error') || "Error", "Please provide a description of the damage.");
             return;
         }
 
         setLoading(true);
         try {
+            let userLocation = null;
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+                userLocation = await Location.getCurrentPositionAsync({});
+            }
+
             const data = {
                 category: selectedType,
                 notes: description,
-                location: "Colombo 7, Sri Lanka", // Placeholder
-                latitude: 6.9271,
-                longitude: 79.8612,
+                location: userLocation ? "Current Location" : "Unknown Location",
+                latitude: userLocation?.coords.latitude || 6.9271,
+                longitude: userLocation?.coords.longitude || 79.8612,
                 structuralDamage: 'MODERATE', // Placeholder
                 estimatedLoss: 0,
             };
 
-            await damageAssessmentService.reportDamage(data);
-            Alert.alert(
-                t('common.success'), 
-                "Your damage assessment has been submitted for review.",
-                [{ text: "OK", onPress: () => navigation.navigate('Home') }]
-            );
+            const result = await submit(data);
+            
+            if (result.queued) {
+                toast.warning(
+                    t('common.offline_queued') || "Queued", 
+                    "You are offline. Your damage assessment will be submitted when you reconnect."
+                );
+                navigation.navigate('Home');
+            } else {
+                toast.success(
+                    t('common.success') || "Success", 
+                    "Your damage assessment has been submitted for review."
+                );
+                navigation.navigate('Home');
+            }
         } catch (error) {
             console.error('Failed to submit damage report:', error);
-            Alert.alert(t('common.error'), "Failed to submit damage assessment.");
+            toast.error(t('common.error') || "Error", "Failed to submit damage assessment.");
         } finally {
             setLoading(false);
         }

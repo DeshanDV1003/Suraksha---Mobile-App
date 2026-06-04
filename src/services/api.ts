@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Replace with your local machine's IP address when testing on a real device
-const API_BASE_URL = 'http://192.168.8.121:3002/api'; // Pointing to the new Mobile Backend
+const API_BASE_URL = 'http://192.168.8.121:3001/api'; // Pointing to the integrated Web Backend
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -126,6 +126,17 @@ export const notificationService = {
 export const locationService = {
   logLocation: (data: any) => api.post('/location/log', data),
   getUserLocation: (userId: string) => api.get(`/location/user/${userId}`),
+};
+
+export const donateService = {
+  submitDonation: (data: any) => api.post('/donations', data),
+};
+
+export const familyService = {
+  reportStatus: (data: any) => api.post('/family/status', data),
+  getMyStatus: () => api.get('/family/my-status'),
+  addMember: (data: any) => api.post('/family/members', data),
+  updateMember: (id: string, data: any) => api.patch(`/family/members/${id}`, data),
 };
 
 export default api;

@@ -3,7 +3,7 @@ import { getIsOnline } from '../services/networkMonitor';
 import { addToSyncQueue } from '../storage/localDB';
 import { getToken } from '../services/storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.8.121:3002';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.8.121:3001';
 
 export function useOfflineSubmit(type: string, endpoint: string) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'queued' | 'error'>('idle');

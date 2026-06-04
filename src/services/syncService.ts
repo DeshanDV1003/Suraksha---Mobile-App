@@ -2,7 +2,7 @@ import { getPendingItems, markSynced, markFailed, getPendingCount } from '../sto
 import { getIsOnline } from './networkMonitor';
 import { getToken } from './storage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.8.121:3002';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.8.121:3001';
 
 let isSyncing = false;
 
@@ -35,6 +35,22 @@ const SYNC_HANDLERS: Record<string, { method: string, endpoint: string | ((paylo
   RELIEF_TOKEN_CLAIM: {
     method: 'POST',
     endpoint: '/api/relief-tokens/claim'
+  },
+  MISSING_PERSON_REPORT: {
+    method: 'POST',
+    endpoint: '/api/missing-persons'
+  },
+  RESOURCE_SUBMISSION: {
+    method: 'POST',
+    endpoint: '/api/resources'
+  },
+  DONATION_SUBMIT: {
+    method: 'POST',
+    endpoint: '/api/donations'
+  },
+  FAMILY_SAFETY_UPDATE: {
+    method: 'POST',
+    endpoint: '/api/family/status'
   }
 };
 

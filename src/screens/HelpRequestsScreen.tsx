@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HandHelping, Plus, X, MapPin, Users, Clock, ShieldCheck, ChevronLeft } from 'lucide-react-native';
 import { helpRequestService } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
+import { useToast } from '../context/ToastContext';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -41,9 +43,12 @@ export default function HelpRequestsScreen() {
         fetchData();
     }, []);
 
+    const { submit } = useOfflineSubmit('HELP_REQUEST', '/api/help-requests');
+    const toast = useToast();
+
     const handleSubmit = async () => {
         if (!formData.description || !formData.location) {
-            Alert.alert(t('common.error') || 'Error', t('common.fill_required') || 'Please fill all required fields');
+            toast.error(t('common.error') || 'Error', t('common.fill_required') || 'Please fill all required fields');
             return;
         }
 
@@ -54,14 +59,20 @@ export default function HelpRequestsScreen() {
 
         try {
             setIsSubmitting(true);
-            await helpRequestService.createRequest(data);
-            Alert.alert(t('common.success') || 'Success', t('common.report_success') || 'Help request submitted successfully');
+            const result = await submit(data);
+            
+            if (result.queued) {
+                toast.warning(t('common.offline_queued') || 'Queued', 'You are offline. Your request will be submitted when you reconnect.');
+            } else {
+                toast.success(t('common.success') || 'Success', t('common.report_success') || 'Help request submitted successfully');
+            }
+            
             setShowModal(false);
             setFormData({ type: 'Rescue', description: '', location: '', peopleCount: '1', priority: 'MEDIUM' });
             fetchData();
         } catch (error) {
             console.error('Failed to submit request:', error);
-            Alert.alert(t('common.error') || 'Error', t('common.report_fail') || 'Failed to submit request');
+            toast.error(t('common.error') || 'Error', t('common.report_fail') || 'Failed to submit request');
         } finally {
             setIsSubmitting(false);
         }

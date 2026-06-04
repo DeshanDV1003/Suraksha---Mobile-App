@@ -4,6 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Package, Eye, Phone, Plus, X, Search, ChevronLeft } from 'lucide-react-native';
 import { resourceService } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
+import { useToast } from '../context/ToastContext';
 import { useTranslation } from 'react-i18next';
 
 export default function ResourcesScreen() {
@@ -39,22 +41,31 @@ export default function ResourcesScreen() {
         fetchResources();
     }, []);
 
+    const { submit } = useOfflineSubmit('RESOURCE_SUBMISSION', '/api/resources');
+    const toast = useToast();
+
     const handleSubmit = async () => {
         if (!formData.type || !formData.owner || !formData.location || !formData.contact) {
-            Alert.alert(t('common.error') || 'Error', t('common.fill_all') || 'Please fill all fields');
+            toast.error(t('common.error') || 'Error', t('common.fill_all') || 'Please fill all fields');
             return;
         }
 
         try {
             setIsSubmitting(true);
-            await resourceService.createResource(formData);
-            Alert.alert(t('common.success') || 'Success', t('resources.add_success') || 'Resource added successfully');
+            const result = await submit(formData);
+            
+            if (result.queued) {
+                toast.warning(t('common.offline_queued') || 'Queued', 'You are offline. Resource will be submitted when you reconnect.');
+            } else {
+                toast.success(t('common.success') || 'Success', t('resources.add_success') || 'Resource added successfully');
+            }
+            
             setShowModal(false);
             setFormData({ type: '', owner: '', location: '', capacity: '', contact: '' });
             fetchResources();
         } catch (error) {
             console.error('Failed to add resource:', error);
-            Alert.alert(t('common.error') || 'Error', t('resources.add_fail') || 'Failed to add resource');
+            toast.error(t('common.error') || 'Error', t('resources.add_fail') || 'Failed to add resource');
         } finally {
             setIsSubmitting(false);
         }
