@@ -1,5 +1,4 @@
 import { getPendingItems, markSynced, markFailed, getPendingCount } from '../storage/localDB';
-import { getIsOnline } from './networkMonitor';
 import { getToken } from './storage';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.8.121:3001';
@@ -56,6 +55,9 @@ const SYNC_HANDLERS: Record<string, { method: string, endpoint: string | ((paylo
 
 export async function syncPendingItems() {
   if (isSyncing) return;
+  
+  // Use dynamic require to break the require cycle with networkMonitor
+  const { getIsOnline } = require('./networkMonitor');
   if (!getIsOnline()) return;
 
   isSyncing = true;

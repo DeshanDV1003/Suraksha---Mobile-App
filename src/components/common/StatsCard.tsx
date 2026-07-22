@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { LucideIcon } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface StatsCardProps {
     label: string;
@@ -14,68 +15,91 @@ interface StatsCardProps {
     customCountColor?: string;
 }
 
-export const StatsCard: React.FC<StatsCardProps> = ({ 
-    label, 
-    count, 
+const gradients: Record<string, [string, string]> = {
+    danger:  ['#EF4444', '#F97316'],
+    success: ['#059669', '#10B981'],
+    info:    ['#2563EB', '#3B82F6'],
+    warning: ['#F59E0B', '#FBBF24'],
+    white:   ['#FFFFFF', '#F8FAFC'],
+};
+
+const textColors: Record<string, string> = {
+    danger:  '#FFF',
+    success: '#FFF',
+    info:    '#FFF',
+    warning: '#FFF',
+    white:   '#0F172A',
+};
+
+const subTextColors: Record<string, string> = {
+    danger:  'rgba(255,255,255,0.8)',
+    success: 'rgba(255,255,255,0.8)',
+    info:    'rgba(255,255,255,0.8)',
+    warning: 'rgba(255,255,255,0.8)',
+    white:   '#64748B',
+};
+
+export const StatsCard: React.FC<StatsCardProps> = ({
+    label,
+    count,
     variant = 'white',
     icon: Icon,
     onPress,
-    size = 'large',
-    layout = 'vertical',
     className = '',
-    customCountColor
+    customCountColor,
 }) => {
-    const bgColors = {
-        danger: 'bg-[#F97316]',
-        success: 'bg-[#10B981]',
-        info: 'bg-[#3B82F6]',
-        warning: 'bg-[#F97316]',
-        white: 'bg-white',
-    };
-
-    const textColors = {
-        danger: 'text-white',
-        success: 'text-white',
-        info: 'text-white',
-        warning: 'text-white',
-        white: 'text-gray-900',
-    };
-
-    const countColors = {
-        danger: 'text-white',
-        success: 'text-white',
-        info: 'text-white',
-        warning: 'text-white',
-        white: 'text-primary',
-    };
+    const [c1, c2] = gradients[variant];
+    const isColored = variant !== 'white';
 
     return (
-        <TouchableOpacity 
+        <TouchableOpacity
             disabled={!onPress}
             onPress={onPress}
             activeOpacity={0.8}
-            className={`rounded-3xl p-4 shadow-sm ${bgColors[variant]} ${className} ${
-                size === 'small' ? 'flex-1 mx-1' : 'flex-1 mx-1'
-            }`}
+            style={{
+                flex: 1,
+                marginHorizontal: 4,
+                borderRadius: 18,
+                overflow: 'hidden',
+                shadowColor: isColored ? c1 : '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: isColored ? 0.25 : 0.06,
+                shadowRadius: 8,
+                elevation: 4,
+            }}
         >
-            <View className="items-start">
+            <LinearGradient
+                colors={[c1, c2]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ padding: 16, minHeight: 90 }}
+            >
                 {Icon && (
-                    <Icon 
-                        size={28} 
-                        color={variant === 'white' ? '#4B5563' : 'white'} 
-                        className="mb-4"
-                        strokeWidth={1.5}
+                    <Icon
+                        size={22}
+                        color={isColored ? 'rgba(255,255,255,0.85)' : '#64748B'}
+                        strokeWidth={2}
+                        style={{ marginBottom: 8 }}
                     />
                 )}
-                
-                <Text className={`text-4xl font-extrabold ${
-                    customCountColor || countColors[variant]
-                }`}>{count}</Text>
-                
-                <Text className={`text-sm font-bold opacity-90 ${textColors[variant]}`}>
+                <Text style={{
+                    fontSize: 28,
+                    fontWeight: '900',
+                    color: customCountColor || textColors[variant],
+                    letterSpacing: -1,
+                    lineHeight: 32,
+                }}>
+                    {count}
+                </Text>
+                <Text style={{
+                    fontSize: 11,
+                    fontWeight: '600',
+                    color: subTextColors[variant],
+                    marginTop: 3,
+                }}>
                     {label}
                 </Text>
-            </View>
+            </LinearGradient>
         </TouchableOpacity>
     );
 };

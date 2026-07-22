@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { AlertTriangle, MapPin, Navigation, User } from 'lucide-react-native';
+import { AlertTriangle, MapPin, Clock, Zap, Info } from 'lucide-react-native';
 
 interface AlertDetailCardProps {
     title: string;
@@ -13,88 +13,116 @@ interface AlertDetailCardProps {
     onMapPress?: () => void;
 }
 
-export const AlertDetailCard: React.FC<AlertDetailCardProps> = ({ 
-    title, 
-    time, 
-    location, 
+const config = {
+    danger: {
+        strip: '#EF4444',
+        bg: '#FFF5F5',
+        badge: '#EF4444',
+        badgeText: '#FFF',
+        badgeLabel: 'EMERGENCY',
+        icon: AlertTriangle,
+        titleColor: '#991B1B',
+        iconColor: '#EF4444',
+    },
+    warning: {
+        strip: '#F97316',
+        bg: '#FFF9F2',
+        badge: '#F97316',
+        badgeText: '#FFF',
+        badgeLabel: 'WARNING',
+        icon: Zap,
+        titleColor: '#9A3412',
+        iconColor: '#F97316',
+    },
+    info: {
+        strip: '#3B82F6',
+        bg: '#EFF6FF',
+        badge: '#3B82F6',
+        badgeText: '#FFF',
+        badgeLabel: 'INFO',
+        icon: Info,
+        titleColor: '#1E40AF',
+        iconColor: '#3B82F6',
+    },
+};
+
+export const AlertDetailCard: React.FC<AlertDetailCardProps> = ({
+    title,
+    time,
+    location,
     description,
     officer,
     mapLabel,
     variant = 'danger',
-    onMapPress
+    onMapPress,
 }) => {
-    const theme = {
-        danger: {
-            bg: 'bg-[#FFF5F5]',
-            border: 'border-[#EF4444]',
-            iconBg: 'bg-[#EF4444]',
-            text: 'text-[#991B1B]',
-            title: 'text-[#B91C1C]'
-        },
-        warning: {
-            bg: 'bg-[#FFF9F2]',
-            border: 'border-[#F97316]',
-            iconBg: 'bg-[#F97316]',
-            text: 'text-[#92400E]',
-            title: 'text-[#C2410C]'
-        },
-        info: {
-            bg: 'bg-[#FEFCE8]',
-            border: 'border-[#EAB308]',
-            iconBg: 'bg-[#EAB308]',
-            text: 'text-[#854D0E]',
-            title: 'text-[#A16207]'
-        }
-    };
-
-    const currentTheme = theme[variant];
+    const c = config[variant];
+    const IconComp = c.icon;
 
     return (
-        <View className={`rounded-3xl border-2 mb-6 overflow-hidden ${currentTheme.bg} ${currentTheme.border} p-5 shadow-sm`}>
-            <View className="flex-row justify-between items-start mb-4">
-                <View className="flex-row items-center flex-1">
-                    <View className={`w-12 h-12 rounded-2xl items-center justify-center shadow-sm ${currentTheme.iconBg}`}>
-                        <AlertTriangle size={26} color="white" strokeWidth={2.5} />
+        <View style={{
+            backgroundColor: 'white',
+            borderRadius: 20,
+            marginBottom: 14,
+            overflow: 'hidden',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.07,
+            shadowRadius: 8,
+            elevation: 3,
+            flexDirection: 'row',
+        }}>
+            {/* Left accent strip */}
+            <View style={{ width: 5, backgroundColor: c.strip }} />
+
+            <View style={{ flex: 1, padding: 16 }}>
+                {/* Header row */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <View style={{ width: 36, height: 36, backgroundColor: c.bg, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                            <IconComp size={18} color={c.iconColor} strokeWidth={2.5} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: c.titleColor, fontSize: 15, fontWeight: '800', lineHeight: 19, flexShrink: 1 }} numberOfLines={2}>
+                                {title}
+                            </Text>
+                        </View>
                     </View>
-                    <View className="ml-4 flex-1">
-                        <Text className={`text-2xl font-bold leading-7 ${currentTheme.title}`}>
-                            {title}
+                    <View style={{ backgroundColor: c.badge, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginLeft: 8 }}>
+                        <Text style={{ color: c.badgeText, fontSize: 9, fontWeight: '800', letterSpacing: 0.5 }}>{c.badgeLabel}</Text>
+                    </View>
+                </View>
+
+                {/* Location */}
+                {location ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                        <MapPin size={13} color="#94A3B8" strokeWidth={2} />
+                        <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '600', marginLeft: 5, flex: 1 }} numberOfLines={1}>
+                            {location}
                         </Text>
                     </View>
-                </View>
-                <Text className="text-gray-500 font-bold text-sm">{time}</Text>
-            </View>
+                ) : null}
 
-            <View className="flex-row items-start mb-4 ml-1">
-                <MapPin size={18} color="#4B5563" />
-                <View className="ml-2 flex-1">
-                    <Text className="text-gray-600 font-bold text-base">{location}</Text>
-                </View>
-            </View>
-
-            <View className="mb-6">
-                <Text className="text-gray-700 text-lg leading-6 font-medium">
-                    {description}
-                </Text>
-            </View>
-
-            <View className="h-[1px] bg-gray-200 mb-4 mx-[-20px]" />
-
-            <View className="flex-row justify-between items-center">
-                <View className="flex-row items-center">
-                    <User size={18} color="#6B7280" />
-                    <Text className="text-gray-500 font-bold text-sm ml-2">
-                        {officer}
+                {/* Description */}
+                {description ? (
+                    <Text style={{ color: '#475569', fontSize: 13, lineHeight: 19, marginBottom: 12 }} numberOfLines={3}>
+                        {description}
                     </Text>
+                ) : null}
+
+                {/* Footer */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Clock size={12} color="#94A3B8" strokeWidth={2} />
+                        <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600', marginLeft: 4 }}>{time}</Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={onMapPress}
+                        style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 }}
+                    >
+                        <Text style={{ color: '#2563EB', fontSize: 12, fontWeight: '700' }}>{mapLabel}</Text>
+                    </TouchableOpacity>
                 </View>
-                
-                <TouchableOpacity 
-                    onPress={onMapPress}
-                    className="flex-row items-center bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100"
-                >
-                    <Text className="text-[#2563EB] font-bold text-base mr-2">{mapLabel}</Text>
-                    <Navigation size={16} color="#2563EB" />
-                </TouchableOpacity>
             </View>
         </View>
     );

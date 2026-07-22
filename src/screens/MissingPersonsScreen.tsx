@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Image, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { UserSearch, Plus, X, MapPin, Clock, User, Phone, ChevronLeft } from 'lucide-react-native';
+import { UserSearch, Plus, X, MapPin, Clock, User, Phone, ChevronLeft, Calendar, FileText } from 'lucide-react-native';
 import { missingPersonService } from '../services/api';
 import { useNavigation } from '@react-navigation/native';
 import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
@@ -17,6 +17,7 @@ export default function MissingPersonsScreen() {
     const [persons, setPersons] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+    const [selectedPerson, setSelectedPerson] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
@@ -149,7 +150,7 @@ export default function MissingPersonsScreen() {
                                                 {dayjs(person.createdAt).fromNow()}
                                             </Text>
                                         </View>
-                                        <TouchableOpacity>
+                                        <TouchableOpacity onPress={() => setSelectedPerson(person)}>
                                             <Text className="text-[10px] font-black text-[#E11D48] uppercase tracking-widest">{t('missing_persons.view_details')}</Text>
                                         </TouchableOpacity>
                                     </View>
@@ -170,13 +171,70 @@ export default function MissingPersonsScreen() {
                             {t('missing_persons.emergency_desc') || "If you have immediate information, call 119 or our rescue center at +94 112 345 678"}
                         </Text>
                     </View>
-                    <TouchableOpacity className="px-8 py-4 bg-white rounded-2xl border border-blue-100 shadow-sm w-full items-center">
+                    <TouchableOpacity
+                        onPress={() => Linking.openURL('tel:119')}
+                        className="px-8 py-4 bg-white rounded-2xl border border-blue-100 shadow-sm w-full items-center"
+                    >
                         <Text className="text-[#3B82F6] font-bold">{t('missing_persons.call_now')}</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
 
-            {/* Modal */}
+            {/* View Details Modal */}
+            <Modal
+                visible={!!selectedPerson}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setSelectedPerson(null)}
+            >
+                <View className="flex-1 bg-black/40 justify-end">
+                    <View className="bg-white rounded-t-[2.5rem] p-8">
+                        <View className="flex-row items-center justify-between mb-6">
+                            <Text className="text-2xl font-black text-slate-900">{t('missing_persons.details') || 'Person Details'}</Text>
+                            <TouchableOpacity onPress={() => setSelectedPerson(null)} className="p-2 bg-slate-100 rounded-full">
+                                <X size={20} color="#64748b" />
+                            </TouchableOpacity>
+                        </View>
+                        {selectedPerson && (
+                            <View className="space-y-4">
+                                <View className="bg-slate-50 rounded-2xl p-4 items-center">
+                                    <User size={64} color="#CBD5E1" />
+                                    {selectedPerson.status === 'FOUND' && (
+                                        <View className="mt-2 bg-[#10B981] px-4 py-1 rounded-full">
+                                            <Text className="text-white text-xs font-black uppercase">{t('missing_persons.found')}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <Text className="text-2xl font-black text-slate-900">{selectedPerson.name}</Text>
+                                <Text className="text-slate-500 font-bold">{selectedPerson.age} {t('missing_persons.age_suffix') || 'Years Old'} • {selectedPerson.gender || ''}</Text>
+                                <View className="flex-row items-center">
+                                    <MapPin size={16} color="#F43F5E" />
+                                    <Text className="text-slate-600 font-bold ml-2 flex-1">{t('missing_persons.last_seen')}: {selectedPerson.lastSeen}</Text>
+                                </View>
+                                <View className="flex-row items-start">
+                                    <FileText size={16} color="#94A3B8" />
+                                    <Text className="text-slate-500 ml-2 flex-1 leading-relaxed">{selectedPerson.description}</Text>
+                                </View>
+                                {selectedPerson.contactPhone && (
+                                    <TouchableOpacity
+                                        onPress={() => Linking.openURL(`tel:${selectedPerson.contactPhone}`)}
+                                        className="flex-row items-center bg-blue-50 p-4 rounded-2xl"
+                                    >
+                                        <Phone size={20} color="#3B82F6" />
+                                        <Text className="text-[#3B82F6] font-bold ml-3">{selectedPerson.contactName}: {selectedPerson.contactPhone}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <View className="flex-row items-center">
+                                    <Clock size={14} color="#94A3B8" />
+                                    <Text className="text-slate-400 text-xs font-bold ml-2">{t('missing_persons.reported')}: {dayjs(selectedPerson.createdAt).fromNow()}</Text>
+                                </View>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Report Modal */}
             <Modal
                 visible={showModal}
                 animationType="slide"

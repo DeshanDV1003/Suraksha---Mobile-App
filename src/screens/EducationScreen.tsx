@@ -66,7 +66,7 @@ export default function EducationScreen() {
     ];
 
     return (
-        <View className="flex-1 bg-white">
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
             <Header 
                 title={t('edu.title')} 
                 subtitle={t('edu.subtitle')} 

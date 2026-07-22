@@ -30,7 +30,7 @@ export async function preloadCriticalData() {
 
     console.log('[Preload] Critical data cached for offline use');
   } catch (err: any) {
-    console.warn('[Preload] Failed to preload:', err.message);
+    console.log('[Preload] Failed to preload (backend may be offline):', err.message);
     // Non-fatal — user still has whatever was cached last time
   }
 }

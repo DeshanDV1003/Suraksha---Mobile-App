@@ -103,7 +103,7 @@ export default function FamilySafetyScreen() {
     ];
 
     return (
-        <View className="flex-1 bg-white">
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
             <Header 
                 title={t('safety.title')} 
                 subtitle={t('safety.subtitle')} 

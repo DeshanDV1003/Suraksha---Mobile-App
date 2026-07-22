@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { MapPin, Clock } from 'lucide-react-native';
+import { MapPin, Clock, Navigation, Users } from 'lucide-react-native';
 import { ServiceChip } from './ServiceChip';
 
 interface ReliefCampCardProps {
@@ -21,93 +21,110 @@ interface ReliefCampCardProps {
 }
 
 export const ReliefCampCard: React.FC<ReliefCampCardProps> = ({
-    name,
-    distance,
-    currentOccupancy,
-    maxOccupancy,
-    services,
-    waitTime,
-    onGetDirections,
-    labels
+    name, distance, currentOccupancy, maxOccupancy, services, waitTime, onGetDirections, labels,
 }) => {
     const isFull = currentOccupancy >= maxOccupancy;
-    const occupancyPercent = Math.min((currentOccupancy / maxOccupancy) * 100, 100);
-
-    const theme = {
-        badgeBg: isFull ? 'bg-red-50' : 'bg-blue-50',
-        badgeText: isFull ? 'text-red-600' : 'text-blue-600',
-        progressBar: isFull ? 'bg-red-500' : 'bg-green-500',
-        occupancyText: isFull ? 'text-red-500' : 'text-green-600',
-        border: isFull ? 'border-red-100' : 'border-gray-100'
-    };
+    const occupancyPercent = maxOccupancy > 0 ? Math.min((currentOccupancy / maxOccupancy) * 100, 100) : 0;
+    const barColor = occupancyPercent > 85 ? '#EF4444' : occupancyPercent > 60 ? '#F97316' : '#10B981';
 
     return (
-        <View 
-            style={{ borderRadius: 32 }}
-            className={`bg-white border ${theme.border} p-7 mb-6 shadow-sm`}
-        >
-            <View className="flex-row justify-between items-start mb-2">
-                <Text className="text-[#1E3A8A] text-[22px] font-extrabold flex-1 mr-4">
-                    {name}
-                </Text>
-                <View className={`${theme.badgeBg} px-4 py-1.5 rounded-full`}>
-                    <Text className={`${theme.badgeText} text-sm font-bold`}>
-                        {distance}
+        <View style={{
+            backgroundColor: 'white',
+            borderRadius: 22,
+            marginBottom: 16,
+            overflow: 'hidden',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.07,
+            shadowRadius: 10,
+            elevation: 3,
+        }}>
+            {/* Header */}
+            <View style={{ padding: 18, paddingBottom: 14 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <Text style={{ color: '#0F172A', fontSize: 16, fontWeight: '800', flex: 1, paddingRight: 10 }}>
+                        {name}
                     </Text>
+                    <View style={{
+                        backgroundColor: isFull ? '#FFF5F5' : '#F0FDF4',
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 10,
+                    }}>
+                        <Text style={{ color: isFull ? '#EF4444' : '#059669', fontSize: 11, fontWeight: '800' }}>
+                            {isFull ? 'FULL' : 'OPEN'}
+                        </Text>
+                    </View>
+                </View>
+
+                {distance && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                        <MapPin size={13} color="#94A3B8" strokeWidth={2} />
+                        <Text style={{ color: '#64748B', fontSize: 13, fontWeight: '500', marginLeft: 5 }}>{distance}</Text>
+                    </View>
+                )}
+
+                {/* Occupancy */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Users size={13} color="#64748B" strokeWidth={2} />
+                        <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '600', marginLeft: 5 }}>
+                            {labels.occupancy}
+                        </Text>
+                    </View>
+                    <Text style={{ color: barColor, fontSize: 13, fontWeight: '800' }}>
+                        {currentOccupancy}/{maxOccupancy}
+                    </Text>
+                </View>
+
+                {/* Progress bar */}
+                <View style={{ backgroundColor: '#F1F5F9', height: 8, borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
+                    <View style={{ width: `${occupancyPercent}%`, backgroundColor: barColor, height: '100%', borderRadius: 8 }} />
+                </View>
+
+                {/* Services */}
+                <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                    {labels.services}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+                    {services.map((service, i) => (
+                        <ServiceChip key={i} type={service} label={labels.allServices[service]} />
+                    ))}
                 </View>
             </View>
 
-            <View className="flex-row items-center mb-6">
-                <MapPin size={16} color="#64748B" />
-                <Text className="text-gray-400 text-base font-semibold ml-2">
-                    {distance}
-                </Text>
-            </View>
-
-            <View className="flex-row justify-between items-end mb-3">
-                <Text className="text-gray-500 text-sm font-bold uppercase">
-                    {labels.occupancy}
-                </Text>
-                <Text className={`${theme.occupancyText} text-base font-extrabold`}>
-                    {currentOccupancy}/{maxOccupancy}
-                </Text>
-            </View>
-
-            {/* Progress Bar Container */}
-            <View className="bg-gray-100 h-2.5 rounded-full w-full mb-8 overflow-hidden">
-                <View 
-                    style={{ width: `${occupancyPercent}%` }}
-                    className={`${theme.progressBar} h-full rounded-full`}
-                />
-            </View>
-
-            <Text className="text-gray-500 text-sm font-bold uppercase mb-4">
-                {labels.services}
-            </Text>
-
-            <View className="flex-row flex-wrap mb-4">
-                {services.map((service, index) => (
-                    <ServiceChip 
-                        key={index}
-                        type={service}
-                        label={labels.allServices[service]}
-                    />
-                ))}
-            </View>
-
-            <View className="h-[1px] bg-gray-100 w-full mb-5" />
-
-            <View className="flex-row justify-between items-center">
-                <View className="flex-row items-center">
-                    <Clock size={16} color="#64748B" />
-                    <Text className="text-gray-500 text-sm font-bold ml-2 leading-relaxed">
-                        {labels.waitTime}: <Text className={`${isFull ? 'text-gray-700' : 'text-gray-900'} font-extrabold uppercase`}>{waitTime}</Text>
+            {/* Footer */}
+            <View style={{
+                borderTopWidth: 1,
+                borderTopColor: '#F1F5F9',
+                paddingHorizontal: 18,
+                paddingVertical: 12,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+            }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Clock size={13} color="#94A3B8" strokeWidth={2} />
+                    <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '500', marginLeft: 5 }}>
+                        {labels.waitTime}:{' '}
+                        <Text style={{ color: '#0F172A', fontWeight: '700' }}>{waitTime}</Text>
                     </Text>
                 </View>
-                <TouchableOpacity onPress={onGetDirections}>
-                    <Text className="text-[#2563EB] text-base font-extrabold">
-                        {labels.getDirections}
-                    </Text>
+                <TouchableOpacity
+                    onPress={onGetDirections}
+                    activeOpacity={0.7}
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#EFF6FF',
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderRadius: 12,
+                        gap: 6,
+                    }}
+                >
+                    <Navigation size={13} color="#2563EB" strokeWidth={2.5} />
+                    <Text style={{ color: '#2563EB', fontSize: 12, fontWeight: '700' }}>{labels.getDirections}</Text>
                 </TouchableOpacity>
             </View>
         </View>

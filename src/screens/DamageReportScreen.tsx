@@ -22,9 +22,18 @@ import * as Location from 'expo-location';
 export default function DamageReportScreen() {
     const { t } = useTranslation();
     const [selectedType, setSelectedType] = useState('RESIDENTIAL');
+    const [structuralDamage, setStructuralDamage] = useState('MODERATE');
     const [description, setDescription] = useState('');
     const [hasInsurance, setHasInsurance] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    const structuralLevels = [
+        { id: 'NONE', label: t('damage.structural_none') || 'None' },
+        { id: 'MINOR', label: t('damage.structural_minor') || 'Minor' },
+        { id: 'MODERATE', label: t('damage.structural_moderate') || 'Moderate' },
+        { id: 'MAJOR', label: t('damage.structural_major') || 'Major' },
+        { id: 'TOTAL', label: t('damage.structural_total') || 'Total Loss' },
+    ];
     const navigation = useNavigation<any>();
 
     const damageTypes = [
@@ -58,7 +67,7 @@ export default function DamageReportScreen() {
                 location: userLocation ? "Current Location" : "Unknown Location",
                 latitude: userLocation?.coords.latitude || 6.9271,
                 longitude: userLocation?.coords.longitude || 79.8612,
-                structuralDamage: 'MODERATE', // Placeholder
+                structuralDamage: structuralDamage,
                 estimatedLoss: 0,
             };
 
@@ -86,7 +95,7 @@ export default function DamageReportScreen() {
     };
 
     return (
-        <View className="flex-1 bg-white">
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
             <Header 
                 title={t('damage.title')} 
                 subtitle={t('damage.subtitle')} 
@@ -128,6 +137,30 @@ export default function DamageReportScreen() {
                     style={{ textAlignVertical: 'top', borderRadius: 24 }}
                     className="bg-[#F8FAFC] border border-gray-100 p-6 text-[#1E3A8A] text-lg font-bold mb-10"
                 />
+
+                <Text className="text-[#1E3A8A] text-xl font-extrabold mb-4 uppercase tracking-tighter">
+                    {t('damage.structural_label') || 'Structural Damage Level'}
+                </Text>
+
+                <View className="flex-row flex-wrap mb-8">
+                    {structuralLevels.map((level) => (
+                        <TouchableOpacity
+                            key={level.id}
+                            onPress={() => setStructuralDamage(level.id)}
+                            className={`mr-2 mb-2 px-4 py-2 rounded-full border-2 ${
+                                structuralDamage === level.id
+                                    ? 'bg-[#2563EB] border-[#2563EB]'
+                                    : 'bg-white border-gray-200'
+                            }`}
+                        >
+                            <Text className={`font-bold text-sm ${
+                                structuralDamage === level.id ? 'text-white' : 'text-gray-600'
+                            }`}>
+                                {level.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
 
                 <Text className="text-[#1E3A8A] text-xl font-extrabold mb-6 uppercase tracking-tighter">
                     {t('damage.upload_label')}

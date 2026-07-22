@@ -1,3 +1,5 @@
+// Must be imported before any Expo modules that log warnings at init time
+import './src/utils/suppressDevWarnings';
 import React from 'react';
 import { Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -52,12 +54,18 @@ function GlobalMobileAlertListener() {
 
     setupLocationTracking();
 
-    // Listen to the new-alert socket event
+    // Listen to all real-time alerts (general, water threshold, and ML predictions)
     alertSocket.on('new-alert', (alert: any) => {
-      // If we received this event, the backend targeted our specific sector room!
+      const isML = alert.source === 'ml-water-predictor';
+      const isWater = alert.source === 'water-monitor';
+      const isEmergency = alert.type === 'EMERGENCY';
+      const prefix = isEmergency ? '🚨' : (isML || isWater) ? '🌊' : '⚠️';
+      const subtitle = isML ? '\n\n🧠 AI Flood Prediction' : '';
       Alert.alert(
-        `🚨 TARGETED AREA ALERT: ${alert.title}`,
-        alert.message
+        `${prefix} ${alert.title}`,
+        `${alert.message}${subtitle}`,
+        [{ text: 'OK', style: 'default' }],
+        { cancelable: true }
       );
     });
 
@@ -82,17 +90,23 @@ const theme = {
 };
 
 export default function App() {
+  const initialized = React.useRef(false);
+
   React.useEffect(() => {
+    // Guard against React StrictMode double-invoke in development
+    if (initialized.current) return;
+    initialized.current = true;
+
     async function init() {
       await openDatabase();
       await startNetworkMonitoring();
-      await registerBackgroundSync();
+      await registerBackgroundSync();  // no-op in Expo Go
       await preloadCriticalData();
+      await registerForPushNotificationsAsync();  // no-op in Expo Go
     }
     init();
 
     socketService.connect();
-    registerForPushNotificationsAsync();
     return () => socketService.disconnect();
   }, []);
 
@@ -100,7 +114,6 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <PaperProvider theme={theme}>
         <GlobalMobileAlertListener />
-        <StatusBar style="auto" />
         <ToastProvider>
           <AppNavigation />
         </ToastProvider>

@@ -1,49 +1,61 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { MapPin, Clock } from 'lucide-react-native';
+import { View, Text } from 'react-native';
+import { AlertTriangle, Zap, Info, MapPin, Clock } from 'lucide-react-native';
 
 interface RecentAlertItemProps {
     title: string;
     location: string;
     time: string;
-    variant?: 'danger' | 'warning';
+    variant?: 'danger' | 'warning' | 'info';
 }
 
-export const RecentAlertItem: React.FC<RecentAlertItemProps> = ({ 
-    title, 
-    location, 
-    time, 
-    variant = 'danger' 
-}) => {
-    const bgColors = {
-        danger: 'bg-alert-red-bg',
-        warning: 'bg-alert-orange-bg',
-    };
+const config = {
+    danger:  { icon: AlertTriangle, color: '#EF4444', bg: '#FFF5F5', strip: '#EF4444', label: 'EMERGENCY' },
+    warning: { icon: Zap,           color: '#F97316', bg: '#FFF9F2', strip: '#F97316', label: 'WARNING'   },
+    info:    { icon: Info,          color: '#3B82F6', bg: '#EFF6FF', strip: '#3B82F6', label: 'INFO'      },
+};
 
-    const borderColors = {
-        danger: 'border-alert-red-border',
-        warning: 'border-alert-orange-border',
-    };
+export const RecentAlertItem: React.FC<RecentAlertItemProps> = ({ title, location, time, variant = 'warning' }) => {
+    const c = config[variant] || config.warning;
+    const Icon = c.icon;
 
     return (
-        <TouchableOpacity 
-            activeOpacity={0.7}
-            className={`flex-row p-5 rounded-[28px] mb-4 border-l-[8px] ${bgColors[variant]} ${borderColors[variant]} shadow-sm items-center`}
-        >
-            <View className="flex-1">
-                <Text className="text-2xl font-extrabold text-[#1E3A8A] mb-2">{title}</Text>
-                
-                <View className="flex-row items-center">
-                    <MapPin size={18} color="#64748B" />
-                    <Text className="text-[#64748B] text-base font-semibold ml-1.5 mr-5">{location}</Text>
-                    
-                    <Clock size={18} color="#64748B" />
-                    <Text className="text-[#64748B] text-base font-semibold ml-1.5">{time}</Text>
+        <View style={{
+            backgroundColor: 'white',
+            borderRadius: 16,
+            marginBottom: 10,
+            overflow: 'hidden',
+            flexDirection: 'row',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 6,
+            elevation: 2,
+        }}>
+            <View style={{ width: 4, backgroundColor: c.strip }} />
+            <View style={{ flex: 1, padding: 14, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ width: 38, height: 38, backgroundColor: c.bg, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Icon size={18} color={c.color} strokeWidth={2.5} />
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#0F172A', fontSize: 13, fontWeight: '700', marginBottom: 3 }} numberOfLines={1}>{title}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        {!!location && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <MapPin size={11} color="#94A3B8" strokeWidth={2} />
+                                <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '500', marginLeft: 3 }} numberOfLines={1}>{location}</Text>
+                            </View>
+                        )}
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Clock size={11} color="#94A3B8" strokeWidth={2} />
+                            <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '500', marginLeft: 3 }}>{time}</Text>
+                        </View>
+                    </View>
+                </View>
+                <View style={{ backgroundColor: c.bg, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginLeft: 8 }}>
+                    <Text style={{ color: c.color, fontSize: 9, fontWeight: '800', letterSpacing: 0.3 }}>{c.label}</Text>
                 </View>
             </View>
-
-            {/* Status dot */}
-            <View className={`w-4 h-4 rounded-full ${variant === 'danger' ? 'bg-[#F43F5E]' : 'bg-[#F97316]'}`} />
-        </TouchableOpacity>
+        </View>
     );
 };

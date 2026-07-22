@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
-import { Header } from '../components/common/Header';
 import { EmergencyCard } from '../components/HomeScreen/EmergencyCard';
-import { StatsCard } from '../components/common/StatsCard';
 import { RecentAlertItem } from '../components/HomeScreen/RecentAlertItem';
 import { ReportSummaryItem } from '../components/HomeScreen/ReportSummaryItem';
 import {
@@ -22,30 +20,55 @@ import {
     Banknote,
     UserSearch,
     HandHelping,
-    HeartPulse
+    HeartPulse,
+    Globe,
+    Waves,
 } from 'lucide-react-native';
 import { ActionGridCard } from '../components/common/ActionGridCard';
-import { dashboardService, incidentService } from '../services/api';
+import { dashboardService, incidentService, alertService } from '../services/api';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+dayjs.extend(relativeTime);
+
+const SectionHeader = ({ title, onViewAll }: { title: string; onViewAll?: () => void }) => (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, marginTop: 24 }}>
+        <Text style={{ color: '#0F172A', fontSize: 17, fontWeight: '800', letterSpacing: -0.3 }}>{title}</Text>
+        {onViewAll && (
+            <TouchableOpacity onPress={onViewAll} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '700' }}>View all</Text>
+                <ChevronRight size={16} color="#2563EB" strokeWidth={2.5} />
+            </TouchableOpacity>
+        )}
+    </View>
+);
 
 export default function HomeScreen() {
     const navigation = useNavigation<any>();
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
     const [stats, setStats] = useState<any>(null);
     const [reports, setReports] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+    const [userName, setUserName] = useState('');
 
     const fetchStats = async () => {
         try {
-            const [statsRes, reportsRes] = await Promise.all([
+            const stored = await AsyncStorage.getItem('user');
+            if (stored) setUserName(JSON.parse(stored)?.name?.split(' ')[0] || '');
+
+            const [statsRes, reportsRes, alertsRes] = await Promise.all([
                 dashboardService.getStats(),
-                incidentService.getMyReports()
+                incidentService.getMyReports(),
+                alertService.getAlerts().catch(() => ({ data: [] })),
             ]);
             setStats(statsRes.data);
             setReports(reportsRes.data);
+            setRecentAlerts((alertsRes.data || []).slice(0, 3));
         } catch (error) {
             console.error('Failed to fetch data:', error);
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -53,192 +76,142 @@ export default function HomeScreen() {
         fetchStats();
     }, []);
 
+    const activeCount = stats?.recentIncidents?.filter((i: any) => i.status !== 'RESOLVED').length || 0;
+    const resolvedCount = stats?.recentIncidents?.filter((i: any) => i.status === 'RESOLVED').length || 0;
+
     return (
-        <View className="flex-1 bg-[#F8FAFC]">
-            <Header
-                title={t('home.welcome') || "Welcome Back"}
-                subtitle={t('home.subtitle') || "Stay safe, stay informed"}
-                onGlobePress={() => navigation.navigate('Language')}
-            />
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
-            <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
-                <EmergencyCard onReportPress={() => navigation.navigate('Report')} />
-
-                <View className="flex-row justify-between mb-10">
-                    <StatsCard
-                        label={t('common.active') || "Active"}
-                        count={stats?.recentIncidents?.filter((i: any) => i.status !== 'RESOLVED').length || 0}
-                        variant="danger"
-                        icon={AlertCircle}
-                    />
-                    <StatsCard
-                        label={t('common.volunteers') || "Volunteers"}
-                        count={stats?.volunteersActive || 0}
-                        variant="success"
-                        icon={Users}
-                    />
-                    <StatsCard
-                        label={t('common.resolved') || "Resolved"}
-                        count={stats?.recentIncidents?.filter((i: any) => i.status === 'RESOLVED').length || 0}
-                        variant="info"
-                        icon={CheckCircle2}
-                    />
-                </View>
-
-
-                {/* Recent Alerts Section */}
-                <View className="flex-row justify-between items-center mb-6">
-                    <Text className="text-3xl font-extrabold text-[#1E3A8A]">
-                        {t('home.recent_alerts') || "Recent Alerts"}
-                    </Text>
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('Alerts')}
-                        className="flex-row items-center"
-                    >
-                        <Text className="text-[#2563EB] font-bold text-xl mr-1">
-                            {t('common.view_all') || "View All"}
+            {/* Gradient header */}
+            <LinearGradient
+                colors={['#0F172A', '#1E3A8A', '#2563EB']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ paddingTop: insets.top + 10, paddingBottom: 28, paddingHorizontal: 20 }}
+            >
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <View>
+                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, fontWeight: '500', marginBottom: 2 }}>
+                            {t('home.welcome') || 'Welcome back'}
                         </Text>
-                        <ChevronRight size={24} color="#2563EB" strokeWidth={2.5} />
+                        <Text style={{ color: 'white', fontSize: 24, fontWeight: '900', letterSpacing: -0.5 }}>
+                            {userName ? `Hi, ${userName} 👋` : 'Suraksha'}
+                        </Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 3 }}>
+                            {t('home.subtitle') || 'Stay safe, stay informed'}
+                        </Text>
+                    </View>
+                    <TouchableOpacity
+                        onPress={() => navigation.navigate('Language')}
+                        style={{ width: 40, height: 40, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                        <Globe size={20} color="white" strokeWidth={2} />
                     </TouchableOpacity>
                 </View>
 
-                <RecentAlertItem
-                    title="Flash Flood Warning"
-                    location="Colombo 7"
-                    time="10 min ago"
-                    variant="danger"
-                />
-                <RecentAlertItem
-                    title="Landslide Risk"
-                    location="Kandy District"
-                    time="1 hour ago"
-                    variant="warning"
-                />
-
-                {/* Your Reports Section */}
-                <View className="mb-6 mt-6">
-                    <Text className="text-3xl font-extrabold text-[#1E3A8A]">
-                        {t('home.your_reports') || "Your Reports"}
-                    </Text>
+                {/* Stats row inside header */}
+                <View style={{ flexDirection: 'row', marginTop: 20 }}>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 14, marginRight: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
+                        <AlertCircle size={18} color="rgba(255,255,255,0.8)" strokeWidth={2} />
+                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{activeCount}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>Active</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 14, marginRight: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
+                        <Users size={18} color="rgba(255,255,255,0.8)" strokeWidth={2} />
+                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{stats?.volunteersActive || 0}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>Volunteers</Text>
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
+                        <CheckCircle2 size={18} color="rgba(255,255,255,0.8)" strokeWidth={2} />
+                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{resolvedCount}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>Resolved</Text>
+                    </View>
                 </View>
+            </LinearGradient>
+
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+                showsVerticalScrollIndicator={false}
+            >
+                <EmergencyCard onReportPress={() => navigation.navigate('Report')} />
+
+                {/* Recent Alerts */}
+                <SectionHeader title={t('home.recent_alerts') || 'Recent Alerts'} onViewAll={() => navigation.navigate('Alerts')} />
+
+                {recentAlerts.length === 0 ? (
+                    <View style={{ backgroundColor: 'white', borderRadius: 18, padding: 20, alignItems: 'center', marginBottom: 4 }}>
+                        <Text style={{ color: '#94A3B8', fontSize: 14, fontWeight: '600' }}>No active alerts</Text>
+                    </View>
+                ) : (
+                    recentAlerts.map((alert) => (
+                        <RecentAlertItem
+                            key={alert.id}
+                            title={alert.title || alert.type}
+                            location={alert.location || alert.area || ''}
+                            time={dayjs(alert.createdAt).fromNow()}
+                            variant={alert.severity === 'HIGH' || alert.severity === 'CRITICAL' ? 'danger' : 'warning'}
+                        />
+                    ))
+                )}
+
+                {/* Your Reports */}
+                <SectionHeader title={t('home.your_reports') || 'Your Reports'} />
 
                 {reports.length === 0 ? (
-                    <View className="bg-white p-6 rounded-[24px] items-center">
-                        <Text className="text-gray-400 font-semibold">No reports found</Text>
+                    <View style={{ backgroundColor: 'white', borderRadius: 18, padding: 20, alignItems: 'center' }}>
+                        <Text style={{ color: '#94A3B8', fontSize: 14, fontWeight: '600' }}>No reports yet</Text>
                     </View>
                 ) : (
                     reports.slice(0, 3).map((report) => (
-                        <ReportSummaryItem 
+                        <ReportSummaryItem
                             key={report.id}
-                            title={report.category || report.title} 
-                            location={report.location} 
-                            statusLabel={report.status} 
+                            title={report.category || report.title}
+                            location={report.location}
+                            statusLabel={report.status}
                             statusVariant={
-                                report.status === 'PENDING' ? 'pending' : 
-                                report.status === 'ASSIGNED' ? 'assigned' : 
+                                report.status === 'PENDING' ? 'pending' :
+                                report.status === 'ASSIGNED' ? 'assigned' :
                                 report.status === 'RESOLVED' ? 'resolved' : 'pending'
-                            } 
+                            }
                             reportId={`#${report.id.substring(0, 8)}`}
                         />
                     ))
                 )}
 
-                {/* Safety & Resources Section */}
-                <View className="mb-6 mt-12">
-                    <Text className="text-[26px] font-bold text-[#111827]">
-                        {t('home.safety_resources') || "Safety & Resources"}
-                    </Text>
+                {/* Safety & Resources */}
+                <SectionHeader title={t('home.safety_resources') || 'Safety & Resources'} />
+                <View style={{ flexDirection: 'row' }}>
+                    <ActionGridCard label={t('home.family_safety') || 'Family Safety'} icon={Heart} onPress={() => navigation.navigate('FamilySafety')} bgColor="#E11D48" />
+                    <ActionGridCard label={t('home.missing_persons') || 'Missing Persons'} icon={UserSearch} onPress={() => navigation.navigate('MissingPersons')} bgColor="#BE185D" />
+                </View>
+                <View style={{ flexDirection: 'row' }}>
+                    <ActionGridCard label={t('home.help_requests') || 'Help Requests'} icon={HandHelping} onPress={() => navigation.navigate('HelpRequests')} bgColor="#1D4ED8" />
+                    <ActionGridCard label={t('home.resources') || 'Resources'} icon={Package} onPress={() => navigation.navigate('Resources')} bgColor="#0284C7" />
+                </View>
+                <View style={{ flexDirection: 'row' }}>
+                    <ActionGridCard label={t('home.relief_camps') || 'Relief Camps'} icon={Building2} onPress={() => navigation.navigate('ReliefCamps')} bgColor="#7C3AED" />
+                    <ActionGridCard label={t('home.my_token') || 'My Token'} icon={QrCode} onPress={() => navigation.navigate('ReliefToken')} bgColor="#0D9488" />
                 </View>
 
-                <View className="flex-row mb-2">
-                    <ActionGridCard
-                        label={t('home.family_safety') || "Family Safety"}
-                        icon={Heart}
-                        onPress={() => navigation.navigate('FamilySafety')}
-                        bgColor="#F43F5E"
-                    />
-                    <ActionGridCard
-                        label={t('home.missing_persons') || "Missing Persons"}
-                        icon={UserSearch}
-                        onPress={() => navigation.navigate('MissingPersons')}
-                        bgColor="#E11D48"
-                    />
+                {/* Information & Support */}
+                <SectionHeader title={t('home.info_support') || 'Information & Support'} />
+                <View style={{ flexDirection: 'row' }}>
+                    <ActionGridCard label={t('home.preparedness') || 'Preparedness'} icon={CheckSquare} onPress={() => navigation.navigate('Preparedness')} bgColor="#0F766E" />
+                    <ActionGridCard label={t('home.education') || 'Education'} icon={BookOpen} onPress={() => navigation.navigate('Education')} bgColor="#4F46E5" />
                 </View>
-                <View className="flex-row mb-2">
-                    <ActionGridCard
-                        label={t('home.help_requests') || "Help Requests"}
-                        icon={HandHelping}
-                        onPress={() => navigation.navigate('HelpRequests')}
-                        bgColor="#2563EB"
-                    />
-                    <ActionGridCard
-                        label={t('home.resources') || "Resources"}
-                        icon={Package}
-                        onPress={() => navigation.navigate('Resources')}
-                        bgColor="#3B82F6"
-                    />
+                <View style={{ flexDirection: 'row' }}>
+                    <ActionGridCard label={t('home.damage_report') || 'Damage Report'} icon={ClipboardList} onPress={() => navigation.navigate('DamageReport')} bgColor="#EA580C" />
+                    <ActionGridCard label={t('home.mental_support') || 'Counseling'} icon={HeartPulse} onPress={() => navigation.navigate('Support')} bgColor="#6D28D9" />
                 </View>
-                <View className="flex-row mb-6">
-                    <ActionGridCard
-                        label={t('home.relief_camps') || "Relief Camps"}
-                        icon={Building2}
-                        onPress={() => navigation.navigate('ReliefCamps')}
-                        bgColor="#A855F7"
-                    />
-                    <ActionGridCard
-                        label={t('home.my_token') || "My Token"}
-                        icon={QrCode}
-                        onPress={() => navigation.navigate('ReliefToken')}
-                        bgColor="#10B981"
-                    />
+                <View style={{ flexDirection: 'row' }}>
+                    <ActionGridCard label={t('home.donate') || 'Donate'} icon={Banknote} onPress={() => navigation.navigate('Donate')} bgColor="#059669" />
+                    <ActionGridCard label="Water Levels" icon={Waves} onPress={() => navigation.navigate('WaterLevel')} bgColor="#0369A1" />
+                    <View style={{ flex: 1, margin: 6 }} />
                 </View>
 
-                {/* Information & Support Section */}
-                <View className="mb-6 mt-8">
-                    <Text className="text-[26px] font-bold text-[#111827]">
-                        {t('home.info_support') || "Information & Support"}
-                    </Text>
-                </View>
-
-                <View className="flex-row mb-2">
-                    <ActionGridCard
-                        label={t('home.preparedness') || "Preparedness"}
-                        icon={CheckSquare}
-                        onPress={() => navigation.navigate('Preparedness')}
-                        bgColor="#0D9488"
-                    />
-                    <ActionGridCard
-                        label={t('home.education') || "Education"}
-                        icon={BookOpen}
-                        onPress={() => navigation.navigate('Education')}
-                        bgColor="#6366F1"
-                    />
-                </View>
-                <View className="flex-row mb-2">
-                    <ActionGridCard
-                        label={t('home.damage_report') || "Damage Report"}
-                        icon={ClipboardList}
-                        onPress={() => navigation.navigate('DamageReport')}
-                        bgColor="#FB923C"
-                    />
-                    <ActionGridCard
-                        label={t('home.mental_support') || "Counseling"}
-                        icon={HeartPulse}
-                        onPress={() => navigation.navigate('Support')}
-                        bgColor="#7C3AED"
-                    />
-                </View>
-                <View className="flex-row mb-12">
-                    <ActionGridCard
-                        label={t('home.donate') || "Donate"}
-                        icon={Banknote}
-                        onPress={() => navigation.navigate('Donate')}
-                        bgColor="#10B981"
-                    />
-                    <View className="flex-1" />
-                </View>
-
-                <View className="h-10" />
+                <View style={{ height: 16 }} />
             </ScrollView>
         </View>
     );

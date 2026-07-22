@@ -1,56 +1,69 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Platform } from 'react-native';
 import api from './api';
 
+// Remote push notifications are not supported in Expo Go SDK 53+.
+// Local notifications (alerts shown while app is open) still work fine.
+const isExpoGo =
+    Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
+    (Constants as any).appOwnership === 'expo';
+
+// Configure how local notifications are displayed (works in both Expo Go and builds)
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+    }),
 });
 
-export const registerForPushNotificationsAsync = async () => {
-  let token;
-  if (Device.isDevice) {
+export const registerForPushNotificationsAsync = async (): Promise<string | undefined> => {
+    // Remote push tokens only work in a development build or production binary
+    if (isExpoGo) {
+        return undefined;
+    }
+
+    if (!Device.isDevice) {
+        return undefined;
+    }
+
+    // Set up Android notification channel
+    if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+            name: 'Suraksha Alerts',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#2563EB',
+        });
+    }
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
+
     if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
     }
+
     if (finalStatus !== 'granted') {
-      console.log('Failed to get push token for push notification!');
-      return;
+        return undefined;
     }
+
     try {
-      token = (await Notifications.getExpoPushTokenAsync()).data;
-      console.log('Push Token:', token);
-    } catch (e) {
-      console.warn('Failed to get Expo Push Token. Remote notifications may not work in this environment.');
+        const { data: token } = await Notifications.getExpoPushTokenAsync();
+
+        // Register token with backend
+        await api.patch('/auth/push-token', { pushToken: token }).catch(() => {
+            // Non-fatal if backend is unreachable
+        });
+
+        return token;
+    } catch {
+        // Token fetch can fail in some environments — not critical
+        return undefined;
     }
-
-    // Send token to backend
-    try {
-      await api.patch('/auth/push-token', { pushToken: token });
-    } catch (error) {
-      console.error('Failed to save push token to backend:', error);
-    }
-  } else {
-    console.log('Must use physical device for Push Notifications');
-  }
-
-  if (Platform.OS === 'android') {
-    Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
-    });
-  }
-
-  return token;
 };

@@ -1,20 +1,14 @@
-import React from 'react';
-import { View, Text, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Platform, TouchableOpacity, StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import {
-    Home,
-    AlertTriangle,
-    Bell,
-    ClipboardList,
-    User,
-    CircleAlert
-} from 'lucide-react-native';
-
+import { Home, AlertTriangle, Bell, ClipboardList, User } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import OfflineBanner from '../components/OfflineBanner';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -36,14 +30,32 @@ import MissingPersonsScreen from '../screens/MissingPersonsScreen';
 import HelpRequestsScreen from '../screens/HelpRequestsScreen';
 import ResourcesScreen from '../screens/ResourcesScreen';
 import SupportScreen from '../screens/SupportScreen';
+import WaterLevelScreen from '../screens/WaterLevelScreen';
+import { notificationService, volunteerService } from '../services/api';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function TabBadge({ count }: { count: number }) {
+function Badge({ count }: { count: number }) {
+    if (count <= 0) return null;
     return (
-        <View className="absolute -top-1 -right-2 bg-[#EF4444] rounded-full w-5 h-5 items-center justify-center border-2 border-white">
-            <Text className="text-white text-[10px] font-bold">{count}</Text>
+        <View style={{
+            position: 'absolute',
+            top: -4,
+            right: -8,
+            backgroundColor: '#EF4444',
+            borderRadius: 10,
+            minWidth: 18,
+            height: 18,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 4,
+            borderWidth: 2,
+            borderColor: 'white',
+        }}>
+            <Text style={{ color: 'white', fontSize: 9, fontWeight: '900' }}>
+                {count > 99 ? '99+' : count}
+            </Text>
         </View>
     );
 }
@@ -63,89 +75,122 @@ function HomeStackNavigator() {
             <Stack.Screen name="HelpRequests" component={HelpRequestsScreen} />
             <Stack.Screen name="Resources" component={ResourcesScreen} />
             <Stack.Screen name="Support" component={SupportScreen} />
+            <Stack.Screen name="WaterLevel" component={WaterLevelScreen} />
         </Stack.Navigator>
     );
 }
 
-
 function MainTabNavigator() {
     const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
+    const [unreadAlerts, setUnreadAlerts] = useState(0);
+    const [pendingTasks, setPendingTasks] = useState(0);
+
+    useEffect(() => {
+        const fetchBadgeCounts = async () => {
+            try {
+                const [notifRes, tasksRes] = await Promise.all([
+                    notificationService.getNotifications().catch(() => ({ data: [] })),
+                    volunteerService.getMyTasks().catch(() => ({ data: [] })),
+                ]);
+                const unread = (notifRes.data || []).filter((n: any) => !n.read).length;
+                setUnreadAlerts(unread);
+                const pending = (tasksRes.data || []).filter((t: any) => t.status === 'PENDING' || t.status === 'IN_PROGRESS').length;
+                setPendingTasks(pending);
+            } catch {}
+        };
+        fetchBadgeCounts();
+        const interval = setInterval(fetchBadgeCounts, 60000);
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <Tab.Navigator
             id="main-tabs"
             screenOptions={{
+                headerShown: false,
                 tabBarActiveTintColor: '#2563EB',
                 tabBarInactiveTintColor: '#94A3B8',
-                headerShown: false,
                 tabBarStyle: {
-                    height: Platform.OS === 'web' ? 70 : 100,
-                    paddingBottom: Platform.OS === 'web' ? 10 : 35,
-                    paddingTop: 12,
+                    height: Platform.OS === 'web' ? 70 : 64 + insets.bottom,
+                    paddingBottom: Platform.OS === 'web' ? 10 : insets.bottom,
+                    paddingTop: 10,
                     borderTopWidth: 1,
                     borderTopColor: '#F1F5F9',
                     backgroundColor: '#FFFFFF',
-                    elevation: 10,
+                    elevation: 20,
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: -2 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 10,
+                    shadowOffset: { width: 0, height: -4 },
+                    shadowOpacity: 0.08,
+                    shadowRadius: 16,
                 },
                 tabBarLabelStyle: {
-                    fontSize: 12,
-                    fontWeight: '800',
-                    marginBottom: Platform.OS === 'web' ? 8 : 0,
-                }
+                    fontSize: 10,
+                    fontWeight: '700',
+                    marginTop: 2,
+                },
             }}
         >
             <Tab.Screen
                 name="Home"
                 component={HomeStackNavigator}
                 options={{
-                    tabBarIcon: ({ color }) => <Home color={color} size={32} strokeWidth={2.5} />,
                     title: t('common.home') || 'Home',
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={{ alignItems: 'center' }}>
+                            <Home color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+                        </View>
+                    ),
                 }}
             />
             <Tab.Screen
                 name="Report"
                 component={ReportScreen}
                 options={{
-                    tabBarIcon: ({ color }) => <CircleAlert color={color} size={32} strokeWidth={2.5} />,
                     title: t('common.report') || 'Report',
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={{ alignItems: 'center' }}>
+                            <AlertTriangle color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+                        </View>
+                    ),
                 }}
             />
             <Tab.Screen
                 name="Alerts"
                 component={AlertsScreen}
                 options={{
-                    tabBarIcon: ({ color }) => (
-                        <View>
-                            <Bell color={color} size={32} strokeWidth={2.5} />
-                            <TabBadge count={3} />
+                    title: t('common.alerts') || 'Alerts',
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={{ alignItems: 'center' }}>
+                            <Bell color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+                            <Badge count={unreadAlerts} />
                         </View>
                     ),
-                    title: t('common.alerts') || 'Alerts',
                 }}
             />
             <Tab.Screen
                 name="Tasks"
                 component={TasksScreen}
                 options={{
-                    tabBarIcon: ({ color }) => (
-                        <View>
-                            <ClipboardList color={color} size={32} strokeWidth={2.5} />
-                            <TabBadge count={2} />
+                    title: t('tasks.title') || 'Tasks',
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={{ alignItems: 'center' }}>
+                            <ClipboardList color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+                            <Badge count={pendingTasks} />
                         </View>
                     ),
-                    title: t('tasks.title') || 'Tasks',
                 }}
             />
             <Tab.Screen
                 name="Profile"
                 component={ProfileScreen}
                 options={{
-                    tabBarIcon: ({ color }) => <User color={color} size={32} strokeWidth={2.5} />,
                     title: t('profile.title') || 'Profile',
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={{ alignItems: 'center' }}>
+                            <User color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
+                        </View>
+                    ),
                 }}
             />
         </Tab.Navigator>
@@ -157,18 +202,18 @@ export default function AppNavigation() {
     const [userToken, setUserToken] = React.useState<string | null>(null);
 
     React.useEffect(() => {
-        const checkToken = async () => {
-            const token = await AsyncStorage.getItem('token');
+        AsyncStorage.getItem('token').then(token => {
             setUserToken(token);
             setIsLoading(false);
-        };
-        checkToken();
+        });
     }, []);
 
     if (isLoading) {
         return (
-            <View className="flex-1 items-center justify-center bg-white">
-                <Text className="text-2xl font-black text-[#2563EB] animate-pulse uppercase tracking-tighter">Suraksha</Text>
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F172A' }}>
+                <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+                <Text style={{ color: 'white', fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>SURAKSHA</Text>
+                <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 6 }}>Loading...</Text>
             </View>
         );
     }
@@ -177,9 +222,9 @@ export default function AppNavigation() {
         <View style={{ flex: 1 }}>
             <OfflineBanner />
             <NavigationContainer>
-                <Stack.Navigator 
+                <Stack.Navigator
                     id="root-stack"
-                    initialRouteName={userToken ? "MainTabs" : "Login"}
+                    initialRouteName={userToken ? 'MainTabs' : 'Login'}
                     screenOptions={{ headerShown: false }}
                 >
                     <Stack.Screen name="Login" component={LoginScreen} />
@@ -188,9 +233,7 @@ export default function AppNavigation() {
                     <Stack.Screen
                         name="Language"
                         component={LanguageScreen}
-                        options={{
-                            animation: 'slide_from_right'
-                        }}
+                        options={{ animation: 'slide_from_right' }}
                     />
                     <Stack.Screen name="ReportStack" component={ReportScreen} />
                 </Stack.Navigator>

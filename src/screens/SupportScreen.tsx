@@ -81,7 +81,7 @@ export default function SupportScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-[#F8FAFC]">
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#F0F4FF" }}>
             <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
                 {/* Header Section */}
                 <LinearGradient

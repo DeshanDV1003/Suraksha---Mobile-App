@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/common/Header';
@@ -8,30 +8,37 @@ import { ChevronRight } from 'lucide-react-native';
 import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 import { ActivityIndicator } from 'react-native';
 import { useToast } from '../context/ToastContext';
+import { tokenService } from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+dayjs.extend(relativeTime);
 
 export default function ReliefTokenScreen() {
     const { t } = useTranslation();
+    const [token, setToken] = useState<any>(null);
+    const [tokenLoading, setTokenLoading] = useState(true);
+    const [userName, setUserName] = useState('');
 
-    const historyItems = [
-        {
-            title: t('token.food_package'),
-            location: "Colombo CC",
-            time: "2 hours ago",
-            status: t('token.collected')
-        },
-        {
-            title: t('token.water_20l'),
-            location: "Colombo CC",
-            time: "5 hours ago",
-            status: t('token.collected')
-        },
-        {
-            title: t('token.medicine'),
-            location: "Dehiwala Camp",
-            time: "1 day ago",
-            status: t('token.collected')
-        }
-    ];
+    useEffect(() => {
+        const loadToken = async () => {
+            try {
+                const stored = await AsyncStorage.getItem('user');
+                if (stored) setUserName(JSON.parse(stored)?.name || '');
+                const res = await tokenService.getTokens();
+                const tokens = res.data || [];
+                const active = tokens.find((t: any) => t.status === 'ACTIVE') || tokens[0] || null;
+                setToken(active);
+            } catch {
+                // no token yet
+            } finally {
+                setTokenLoading(false);
+            }
+        };
+        loadToken();
+    }, []);
+
+    const historyItems: any[] = [];
 
     const { submit, status } = useOfflineSubmit('RELIEF_TOKEN_CLAIM', '/api/relief-tokens/claim');
     const toast = useToast();
@@ -51,7 +58,7 @@ export default function ReliefTokenScreen() {
     };
 
     return (
-        <View className="flex-1 bg-white">
+        <View style={{ flex: 1, backgroundColor: "#F0F4FF" }}>
             <Header
                 title={t('token.title')}
                 subtitle={t('token.subtitle')}
@@ -63,12 +70,22 @@ export default function ReliefTokenScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 40 }}
             >
-                <VerifiedTokenCard
-                    id={t('token.id_label')}
-                    userName={t('token.user_name')}
-                    familyInfo={t('token.family_info')}
-                    verifiedLabel={t('token.verified')}
-                />
+                {tokenLoading ? (
+                    <View className="py-10 items-center">
+                        <ActivityIndicator size="large" color="#2563EB" />
+                    </View>
+                ) : (
+                    <VerifiedTokenCard
+                        id={token ? token.code : t('token.id_label')}
+                        userName={userName || t('token.user_name')}
+                        familyInfo={token
+                            ? (token.status === 'ACTIVE'
+                                ? `${t('token.expires') || 'Expires'}: ${dayjs(token.expiresAt).format('DD MMM YYYY')}`
+                                : token.status)
+                            : t('token.family_info')}
+                        verifiedLabel={token ? (t('token.verified') || 'Verified') : (t('token.no_token') || 'No Active Token')}
+                    />
+                )}
 
                 <TouchableOpacity 
                     onPress={handleClaimToken}

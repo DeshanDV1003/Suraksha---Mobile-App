@@ -79,7 +79,7 @@ export default function HelpRequestsScreen() {
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-[#F8FAFC]">
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#F0F4FF" }}>
             <View className="px-6 py-4 flex-row items-center justify-between bg-white border-b border-slate-100">
                 <View className="flex-row items-center">
                     <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4 p-2 rounded-full bg-slate-50">

@@ -49,7 +49,7 @@ export default function PreparednessScreen() {
     ];
 
     return (
-        <View className="flex-1 bg-white">
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
             <Header 
                 title={t('prep.title')} 
                 subtitle={t('prep.subtitle')} 

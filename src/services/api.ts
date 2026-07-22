@@ -6,6 +6,7 @@ const API_BASE_URL = 'http://192.168.8.121:3001/api'; // Pointing to the integra
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 10000, // 10 seconds — prevents infinite loading when backend is unreachable
   headers: {
     'Content-Type': 'application/json',
   },
@@ -71,8 +72,8 @@ export const tokenService = {
 export const volunteerService = {
   upsertProfile: (data: any) => api.post('/volunteers/profile', data),
   getProfile: () => api.get('/volunteers/profile'),
-  getMyTasks: () => api.get('/volunteers/tasks'),
-  updateTaskStatus: (taskId: string, status: string) => api.patch('/volunteers/tasks/status', { taskId, status }),
+  getMyTasks: () => api.get('/volunteers/tasks/my'),
+  updateTaskStatus: (taskId: string, status: string) => api.patch(`/volunteers/tasks/${taskId}/status`, { status }),
 };
 
 export const helpRequestService = {
@@ -137,6 +138,12 @@ export const familyService = {
   getMyStatus: () => api.get('/family/my-status'),
   addMember: (data: any) => api.post('/family/members', data),
   updateMember: (id: string, data: any) => api.patch(`/family/members/${id}`, data),
+};
+
+export const waterService = {
+  getRiverLevels: () => api.get('/water/river'),
+  getRainfallData: () => api.get('/water/rainfall'),
+  getPredictions: () => api.get('/water/predictions'),
 };
 
 export default api;
