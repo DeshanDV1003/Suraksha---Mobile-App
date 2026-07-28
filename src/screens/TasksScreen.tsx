@@ -53,25 +53,25 @@ export default function TasksScreen() {
         : tasks.filter(t => t.status === 'RESOLVED' || t.status === 'COMPLETED');
 
     const tabs: { key: TabFilter; label: string; count: number; color: string }[] = [
-        { key: 'ALL',         label: 'All',        count: tasks.length, color: '#0F172A' },
-        { key: 'PENDING',     label: 'Pending',    count: pending,      color: '#D97706' },
-        { key: 'IN_PROGRESS', label: 'Active',     count: inProgress,   color: '#2563EB' },
-        { key: 'COMPLETED',   label: 'Done',       count: completed,    color: '#059669' },
+        { key: 'ALL',         label: t('tasks.tab_all'),     count: tasks.length, color: '#0F172A' },
+        { key: 'PENDING',     label: t('tasks.tab_pending'), count: pending,      color: '#D97706' },
+        { key: 'IN_PROGRESS', label: t('tasks.tab_active'),  count: inProgress,   color: '#2563EB' },
+        { key: 'COMPLETED',   label: t('tasks.tab_done'),    count: completed,    color: '#059669' },
     ];
 
     return (
         <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
             <Header
                 title={t('tasks.title') || 'My Tasks'}
-                subtitle="Volunteer assignments"
+                subtitle={t('tasks.subtitle')}
             />
 
             {/* Stats row */}
             <View style={{ backgroundColor: 'white', paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', gap: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
                 {[
-                    { label: 'Pending', count: pending, color: '#F59E0B', icon: Clock },
-                    { label: 'Active', count: inProgress, color: '#2563EB', icon: Play },
-                    { label: 'Done', count: completed, color: '#10B981', icon: CheckCircle2 },
+                    { label: t('tasks.tab_pending'), count: pending, color: '#F59E0B', icon: Clock },
+                    { label: t('tasks.tab_active'), count: inProgress, color: '#2563EB', icon: Play },
+                    { label: t('tasks.tab_done'), count: completed, color: '#10B981', icon: CheckCircle2 },
                 ].map(({ label, count, color, icon: Icon }) => (
                     <View key={label} style={{ flex: 1, backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: '#F1F5F9' }}>
                         <Icon size={18} color={color} strokeWidth={2} />
@@ -121,8 +121,8 @@ export default function TasksScreen() {
                         <View style={{ width: 72, height: 72, backgroundColor: '#F1F5F9', borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
                             <ClipboardX size={32} color="#CBD5E1" strokeWidth={1.5} />
                         </View>
-                        <Text style={{ color: '#0F172A', fontSize: 16, fontWeight: '700', marginBottom: 6 }}>No tasks here</Text>
-                        <Text style={{ color: '#94A3B8', fontSize: 14, textAlign: 'center' }}>Check back soon for new assignments.</Text>
+                        <Text style={{ color: '#0F172A', fontSize: 16, fontWeight: '700', marginBottom: 6 }}>{t('tasks.no_tasks')}</Text>
+                        <Text style={{ color: '#94A3B8', fontSize: 14, textAlign: 'center' }}>{t('tasks.no_tasks_desc')}</Text>
                     </View>
                 ) : (
                     filtered.map((task) => (

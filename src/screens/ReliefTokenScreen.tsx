@@ -40,7 +40,7 @@ export default function ReliefTokenScreen() {
 
     const historyItems: any[] = [];
 
-    const { submit, status } = useOfflineSubmit('RELIEF_TOKEN_CLAIM', '/api/relief-tokens/claim');
+    const { submit, status } = useOfflineSubmit('RELIEF_TOKEN_CLAIM', '/relief-tokens/claim');
     const toast = useToast();
 
     const handleClaimToken = async () => {

@@ -11,9 +11,10 @@ export const createReport = async (req: any, res: Response) => {
         title,
         description,
         location,
-        latitude,
-        longitude,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
         category,
+        images: [],
         reporterId: req.user.userId,
         createdAt: req.body.offlineCreatedAt ? new Date(req.body.offlineCreatedAt) : new Date()
       }
@@ -43,8 +44,9 @@ export const createReport = async (req: any, res: Response) => {
     }
 
     res.status(201).json(report);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to create report' });
+  } catch (error: any) {
+    console.error('[createReport] Error:', error?.message || error);
+    res.status(500).json({ error: error?.message || 'Failed to create report' });
   }
 };
 

@@ -9,6 +9,10 @@ import { useTranslation } from 'react-i18next';
 import OfflineBanner from '../components/OfflineBanner';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
+import LocationGateScreen from '../screens/LocationGateScreen';
+import { LocationProvider, UserLocation } from '../context/LocationContext';
+import { UserProvider, UserRole, useIsVolunteer } from '../context/UserContext';
 
 // Screens
 import HomeScreen from '../screens/HomeScreen';
@@ -31,10 +35,23 @@ import HelpRequestsScreen from '../screens/HelpRequestsScreen';
 import ResourcesScreen from '../screens/ResourcesScreen';
 import SupportScreen from '../screens/SupportScreen';
 import WaterLevelScreen from '../screens/WaterLevelScreen';
-import { notificationService, volunteerService } from '../services/api';
+import SafeZoneScreen from '../screens/SafeZoneScreen';
+import SafeRouteScreen from '../screens/SafeRouteScreen';
+import { notificationService, volunteerService, API_BASE_URL } from '../services/api';
+import i18n from '../i18n';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+async function reverseGeocodeDistrict(lat: number, lng: number): Promise<string | null> {
+    try {
+        const [place] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        // In Sri Lanka, subregion maps to the district (e.g. "Galle", "Colombo")
+        return place?.subregion || place?.city || place?.region || null;
+    } catch {
+        return null;
+    }
+}
 
 function Badge({ count }: { count: number }) {
     if (count <= 0) return null;
@@ -76,6 +93,8 @@ function HomeStackNavigator() {
             <Stack.Screen name="Resources" component={ResourcesScreen} />
             <Stack.Screen name="Support" component={SupportScreen} />
             <Stack.Screen name="WaterLevel" component={WaterLevelScreen} />
+            <Stack.Screen name="SafeZone" component={SafeZoneScreen} options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="SafeRoute" component={SafeRouteScreen} options={{ animation: 'slide_from_bottom' }} />
         </Stack.Navigator>
     );
 }
@@ -85,6 +104,7 @@ function MainTabNavigator() {
     const insets = useSafeAreaInsets();
     const [unreadAlerts, setUnreadAlerts] = useState(0);
     const [pendingTasks, setPendingTasks] = useState(0);
+    const isVolunteer = useIsVolunteer();
 
     useEffect(() => {
         const fetchBadgeCounts = async () => {
@@ -173,6 +193,7 @@ function MainTabNavigator() {
                 component={TasksScreen}
                 options={{
                     title: t('tasks.title') || 'Tasks',
+                    tabBarItemStyle: isVolunteer ? undefined : { display: 'none' },
                     tabBarIcon: ({ color, focused }) => (
                         <View style={{ alignItems: 'center' }}>
                             <ClipboardList color={color} size={24} strokeWidth={focused ? 2.5 : 2} />
@@ -200,12 +221,70 @@ function MainTabNavigator() {
 export default function AppNavigation() {
     const [isLoading, setIsLoading] = React.useState(true);
     const [userToken, setUserToken] = React.useState<string | null>(null);
+    const [userRole, setUserRole] = React.useState<UserRole>('CITIZEN');
+    const [locationGranted, setLocationGranted] = React.useState(false);
+    const [userLocation, setUserLocation] = React.useState<UserLocation | null>(null);
+    const [userDistrict, setUserDistrict] = React.useState<string | null>(null);
 
     React.useEffect(() => {
-        AsyncStorage.getItem('token').then(token => {
-            setUserToken(token);
-            setIsLoading(false);
-        });
+        const checkAuth = async () => {
+            try {
+                // Restore saved language before anything else renders
+                const savedLang = await AsyncStorage.getItem('app_language');
+                if (savedLang) i18n.changeLanguage(savedLang);
+
+                // Check location permission first
+                const { status } = await Location.getForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    setLocationGranted(true);
+                    // Get last known position immediately for fast startup
+                    try {
+                        const last = await Location.getLastKnownPositionAsync();
+                        if (last) {
+                            setUserLocation({ lat: last.coords.latitude, lng: last.coords.longitude });
+                            reverseGeocodeDistrict(last.coords.latitude, last.coords.longitude)
+                                .then(d => { if (d) setUserDistrict(d); });
+                        }
+                        // Fresh position in background — updates both coords and district
+                        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+                            .then(async pos => {
+                                setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                                const d = await reverseGeocodeDistrict(pos.coords.latitude, pos.coords.longitude);
+                                if (d) setUserDistrict(d);
+                            })
+                            .catch(() => {});
+                    } catch {}
+                }
+                // (if not granted, locationGranted stays false → LocationGateScreen shows)
+
+                const token = await AsyncStorage.getItem('token');
+                if (!token) { setIsLoading(false); return; }
+
+                // Verify token is still valid — if backend rejects it, force login
+                const res = await fetch(`${API_BASE_URL}/users/me`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    // Refresh stored user with latest data (picks up profilePicture etc.)
+                    const fresh = await res.json();
+                    await AsyncStorage.setItem('user', JSON.stringify(fresh));
+                    setUserRole((fresh.role as UserRole) || 'CITIZEN');
+                    setUserToken(token);
+                } else {
+                    // Token expired or invalid — clear and show login
+                    await AsyncStorage.multiRemove(['token', 'user']);
+                }
+            } catch {
+                // Backend unreachable — trust the stored token so offline still works
+                const token = await AsyncStorage.getItem('token');
+                const stored = await AsyncStorage.getItem('user');
+                if (stored) setUserRole((JSON.parse(stored).role as UserRole) || 'CITIZEN');
+                setUserToken(token);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        checkAuth();
     }, []);
 
     if (isLoading) {
@@ -218,10 +297,53 @@ export default function AppNavigation() {
         );
     }
 
+    const linking = {
+        prefixes: ['suraksha://'],
+        config: {
+            screens: {
+                MainTabs: {
+                    screens: {
+                        Home: {
+                            screens: {
+                                SafeZone: 'safezone',
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    };
+
+    // Block everything until location is granted
+    if (!locationGranted) {
+        return (
+            <LocationGateScreen onGranted={async () => {
+                setLocationGranted(true);
+                try {
+                    const last = await Location.getLastKnownPositionAsync();
+                    if (last) {
+                        setUserLocation({ lat: last.coords.latitude, lng: last.coords.longitude });
+                        reverseGeocodeDistrict(last.coords.latitude, last.coords.longitude)
+                            .then(d => { if (d) setUserDistrict(d); });
+                    }
+                    Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+                        .then(async pos => {
+                            setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                            const d = await reverseGeocodeDistrict(pos.coords.latitude, pos.coords.longitude);
+                            if (d) setUserDistrict(d);
+                        })
+                        .catch(() => {});
+                } catch {}
+            }} />
+        );
+    }
+
     return (
+        <UserProvider value={{ role: userRole }}>
+        <LocationProvider value={{ userLocation, userDistrict }}>
         <View style={{ flex: 1 }}>
             <OfflineBanner />
-            <NavigationContainer>
+            <NavigationContainer linking={linking}>
                 <Stack.Navigator
                     id="root-stack"
                     initialRouteName={userToken ? 'MainTabs' : 'Login'}
@@ -239,5 +361,7 @@ export default function AppNavigation() {
                 </Stack.Navigator>
             </NavigationContainer>
         </View>
+        </LocationProvider>
+        </UserProvider>
     );
 }

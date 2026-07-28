@@ -14,6 +14,27 @@ interface HeaderProps {
     variant?: 'default' | 'minimal';
 }
 
+function BackButton() {
+    const navigation = useNavigation();
+    return (
+        <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            style={{
+                width: 38,
+                height: 38,
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 14,
+            }}
+        >
+            <ChevronLeft size={22} color="white" strokeWidth={2.5} />
+        </TouchableOpacity>
+    );
+}
+
 export const Header: React.FC<HeaderProps> = ({
     title,
     subtitle,
@@ -22,7 +43,6 @@ export const Header: React.FC<HeaderProps> = ({
     rightContent,
     variant = 'default',
 }) => {
-    const navigation = useNavigation();
     const insets = useSafeAreaInsets();
 
     return (
@@ -41,23 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
                     paddingVertical: variant === 'minimal' ? 14 : 18,
                     paddingBottom: variant === 'minimal' ? 14 : 20,
                 }}>
-                    {showBack && (
-                        <TouchableOpacity
-                            onPress={() => navigation.goBack()}
-                            activeOpacity={0.7}
-                            style={{
-                                width: 38,
-                                height: 38,
-                                backgroundColor: 'rgba(255,255,255,0.15)',
-                                borderRadius: 12,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                marginRight: 14,
-                            }}
-                        >
-                            <ChevronLeft size={22} color="white" strokeWidth={2.5} />
-                        </TouchableOpacity>
-                    )}
+                    {showBack && <BackButton />}
 
                     <View style={{ flex: 1 }}>
                         {title && (

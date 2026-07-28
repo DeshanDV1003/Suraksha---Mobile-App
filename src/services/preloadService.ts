@@ -1,14 +1,13 @@
 import { cacheIncidents, cacheAlerts, cacheReliefCamps, getMeta } from '../storage/localDB';
 import { getToken } from './storage';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.8.121:3002';
+import { API_BASE_URL } from './api';
 
 async function apiFetch(path: string) {
   const token = await getToken();
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
   });
-  if (!res.ok) throw new Error(`Failed to fetch ${path}`);
+  if (!res.ok) throw new Error(`Failed to fetch ${path}: ${res.status}`);
   return res.json();
 }
 
@@ -17,20 +16,18 @@ export async function preloadCriticalData() {
     const lastSync = await getMeta('last_incidents_sync');
     const since = lastSync ? `?since=${lastSync}` : '';
 
-    // If these endpoints differ from api.ts, they should be adjusted
     const [incidents, alerts, camps] = await Promise.all([
-      apiFetch(`/api/incidents${since}`),
-      apiFetch('/api/alerts?active=true'), // Assuming an alert api exists
-      apiFetch('/api/camps') // In api.ts it's /camps, not /relief-camps
+      apiFetch(`/incidents${since}`).catch(() => null),
+      apiFetch('/alerts').catch(() => null),
+      apiFetch('/relief-camps').catch(() => null),
     ]);
 
-    if (incidents) await cacheIncidents(incidents);
-    if (alerts) await cacheAlerts(alerts);
-    if (camps) await cacheReliefCamps(camps);
+    if (Array.isArray(incidents)) await cacheIncidents(incidents);
+    if (Array.isArray(alerts))    await cacheAlerts(alerts);
+    if (Array.isArray(camps))     await cacheReliefCamps(camps);
 
     console.log('[Preload] Critical data cached for offline use');
   } catch (err: any) {
     console.log('[Preload] Failed to preload (backend may be offline):', err.message);
-    // Non-fatal — user still has whatever was cached last time
   }
 }

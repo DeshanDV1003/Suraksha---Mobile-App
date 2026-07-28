@@ -18,44 +18,63 @@ import { preloadCriticalData } from './src/services/preloadService';
 import * as Location from 'expo-location';
 import { Alert } from 'react-native';
 import geohash from 'ngeohash';
+import { isAlertNearby } from './src/utils/distance';
 
 const queryClient = new QueryClient();
 
 import { io } from 'socket.io-client';
 
 function GlobalMobileAlertListener() {
+  const userCoords = React.useRef<{ lat: number; lng: number } | null>(null);
+
   React.useEffect(() => {
-    // Explicitly connect to the main Web Backend port (3001) where alerts are dispatched
     const alertSocket = io('http://192.168.8.121:3001');
     let locationSubscription: any;
 
     const setupLocationTracking = async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          console.warn('Permission to access location was denied for alerts');
-          return;
-        }
+        if (status !== 'granted') return;
 
         locationSubscription = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.Balanced, distanceInterval: 1000 },
           (location) => {
             const lat = location.coords.latitude;
-            const lon = location.coords.longitude;
-            const sectorId = geohash.encode(lat, lon, 5);
-            // Emit join_sector whenever location changes (or initially)
+            const lng = location.coords.longitude;
+            userCoords.current = { lat, lng };
+            const sectorId = geohash.encode(lat, lng, 5);
             alertSocket.emit('join_sector', sectorId);
           }
         );
       } catch (err) {
-        console.warn("Could not start location tracking", err);
+        console.warn('Could not start location tracking', err);
       }
     };
 
     setupLocationTracking();
 
-    // Listen to all real-time alerts (general, water threshold, and ML predictions)
+    // Only show popup if the alert is relevant to the user's current location
     alertSocket.on('new-alert', (alert: any) => {
+      const coords = userCoords.current;
+
+      if (coords) {
+        const relevant = isAlertNearby(
+          {
+            latitudes: alert.latitudes,
+            longitudes: alert.longitudes,
+            locations: alert.locations,
+            broadcastRadiusKm: alert.broadcastRadiusKm,
+          },
+          coords.lat,
+          coords.lng,
+        );
+        if (!relevant) return; // not in the user's area — skip
+      }
+      // If we don't have coords yet, only show explicitly All-Island alerts
+      else if (!(alert.locations ?? []).includes('All Island')) {
+        return;
+      }
+
       const isML = alert.source === 'ml-water-predictor';
       const isWater = alert.source === 'water-monitor';
       const isEmergency = alert.type === 'EMERGENCY';
@@ -70,9 +89,7 @@ function GlobalMobileAlertListener() {
     });
 
     return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
+      locationSubscription?.remove();
       alertSocket.disconnect();
     };
   }, []);

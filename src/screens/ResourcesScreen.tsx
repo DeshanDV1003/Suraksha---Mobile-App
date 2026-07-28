@@ -1,282 +1,381 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Linking } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Package, Eye, Phone, Plus, X, Search, ChevronLeft } from 'lucide-react-native';
+import React, { useState, useCallback } from 'react';
+import {
+    View, Text, ScrollView, TouchableOpacity, TextInput,
+    Modal, ActivityIndicator, Linking, KeyboardAvoidingView, Platform,
+} from 'react-native';
+import {
+    Package, Phone, Plus, X, Search, MapPin,
+    Truck, Zap, Anchor, Home, Users, Info,
+} from 'lucide-react-native';
 import { resourceService } from '../services/api';
-import { useNavigation } from '@react-navigation/native';
+import { useUserDistrict, matchesDistrict } from '../context/LocationContext';
 import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 import { useToast } from '../context/ToastContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { Header } from '../components/common/Header';
 import { useTranslation } from 'react-i18next';
 
+const RESOURCE_ICON = (type: string) => {
+    const t = type.toLowerCase();
+    if (t.includes('boat') || t.includes('vessel'))   return { Icon: Anchor, color: '#0EA5E9', bg: '#E0F2FE' };
+    if (t.includes('truck') || t.includes('vehicle')) return { Icon: Truck,  color: '#16A34A', bg: '#DCFCE7' };
+    if (t.includes('generator') || t.includes('power')) return { Icon: Zap, color: '#7C3AED', bg: '#EDE9FE' };
+    if (t.includes('shelter') || t.includes('room'))  return { Icon: Home,   color: '#EA580C', bg: '#FFEDD5' };
+    if (t.includes('medical') || t.includes('aid'))   return { Icon: Users,  color: '#DC2626', bg: '#FEE2E2' };
+    return { Icon: Package, color: '#2563EB', bg: '#EFF6FF' };
+};
+
+const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
+    AVAILABLE:   { bg: '#D1FAE5', text: '#065F46', label: 'Available' },
+    IN_USE:      { bg: '#FEF3C7', text: '#92400E', label: 'In Use' },
+    UNAVAILABLE: { bg: '#FEE2E2', text: '#991B1B', label: 'Unavailable' },
+};
+
+const STAT_KEYS = [
+    { label: 'Boats',      match: (t: string) => t.includes('boat') || t.includes('vessel'), color: '#0EA5E9' },
+    { label: 'Vehicles',   match: (t: string) => t.includes('vehicle') || t.includes('truck'), color: '#16A34A' },
+    { label: 'Generators', match: (t: string) => t.includes('generator') || t.includes('power'), color: '#7C3AED' },
+    { label: 'Shelter',    match: (t: string) => t.includes('shelter') || t.includes('room'), color: '#EA580C' },
+];
+
 export default function ResourcesScreen() {
-    const navigation = useNavigation();
     const { t } = useTranslation();
+    const toast = useToast();
+    const userDistrict = useUserDistrict();
+
     const [resources, setResources] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const [showDetail, setShowDetail] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formData, setFormData] = useState({
-        type: '',
-        owner: '',
-        location: '',
-        capacity: '',
-        contact: '',
+        type: '', owner: '', location: '', capacity: '', contact: '',
     });
+
+    const { submit } = useOfflineSubmit('RESOURCE_SUBMISSION', '/resources');
 
     const fetchResources = async () => {
         try {
             setLoading(true);
             const res = await resourceService.getResources();
-            setResources(res.data);
-        } catch (error) {
-            console.error('Failed to fetch resources:', error);
-            Alert.alert(t('common.error') || 'Error', t('resources.load_fail') || 'Failed to load resources');
+            setResources(res.data || []);
+        } catch {
+            toast.error('Error', t('resources.load_fail') || 'Failed to load resources');
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        fetchResources();
-    }, []);
+    useFocusEffect(useCallback(() => { fetchResources(); }, []));
 
-    const { submit } = useOfflineSubmit('RESOURCE_SUBMISSION', '/api/resources');
-    const toast = useToast();
+    const nearby = userDistrict
+        ? resources.filter(r => matchesDistrict(r.location, userDistrict))
+        : resources;
+
+    const filtered = nearby.filter(r =>
+        r.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.owner?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.location?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
     const handleSubmit = async () => {
-        if (!formData.type || !formData.owner || !formData.location || !formData.contact) {
-            toast.error(t('common.error') || 'Error', t('common.fill_all') || 'Please fill all fields');
+        if (!formData.type.trim() || !formData.owner.trim() || !formData.location.trim() || !formData.contact.trim()) {
+            toast.error('Error', t('common.fill_all') || 'Please fill all required fields');
             return;
         }
-
+        setIsSubmitting(true);
         try {
-            setIsSubmitting(true);
             const result = await submit(formData);
-            
             if (result.queued) {
-                toast.warning(t('common.offline_queued') || 'Queued', 'You are offline. Resource will be submitted when you reconnect.');
+                toast.warning('Queued', 'You are offline. Resource will be submitted when you reconnect.');
             } else {
-                toast.success(t('common.success') || 'Success', t('resources.add_success') || 'Resource added successfully');
+                toast.success('Success', t('resources.add_success') || 'Resource added successfully');
             }
-            
             setShowModal(false);
             setFormData({ type: '', owner: '', location: '', capacity: '', contact: '' });
             fetchResources();
-        } catch (error) {
-            console.error('Failed to add resource:', error);
-            toast.error(t('common.error') || 'Error', t('resources.add_fail') || 'Failed to add resource');
+        } catch {
+            toast.error('Error', t('resources.add_fail') || 'Failed to add resource');
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const filteredResources = resources.filter(r => 
-        r.type.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        r.owner.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.location.toLowerCase().includes(searchQuery.toLowerCase())
+    const Field = ({ label, value, placeholder, onChangeText, keyboardType }: any) => (
+        <View style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 11, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                {label}
+            </Text>
+            <TextInput
+                value={value}
+                onChangeText={onChangeText}
+                placeholder={placeholder}
+                placeholderTextColor="#94A3B8"
+                keyboardType={keyboardType || 'default'}
+                style={{ backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 14, color: '#0F172A' }}
+            />
+        </View>
     );
 
-    const stats = [
-        { label: t('resources.cat_boats') || 'Boats', value: resources.filter(r => r.type.toLowerCase().includes('boat') && r.status === 'AVAILABLE').length, color: 'text-blue-600' },
-        { label: t('resources.cat_vehicles') || 'Vehicles', value: resources.filter(r => r.type.toLowerCase().includes('vehicle') || r.type.toLowerCase().includes('truck')).length, color: 'text-green-600' },
-        { label: t('resources.cat_generators') || 'Generators', value: resources.filter(r => r.type.toLowerCase().includes('generator')).length, color: 'text-purple-600' },
-        { label: t('resources.cat_shelter') || 'Shelter', value: resources.filter(r => r.type.toLowerCase().includes('room') || r.type.toLowerCase().includes('shelter')).length, color: 'text-orange-600' },
-    ];
-
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#F0F4FF" }}>
-            <View className="px-6 py-4 flex-row items-center justify-between bg-white border-b border-slate-100">
-                <View className="flex-row items-center">
-                    <TouchableOpacity onPress={() => navigation.goBack()} className="mr-4 p-2 rounded-full bg-slate-50">
-                        <ChevronLeft size={24} color="#1e293b" />
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
+            <Header
+                title={t('resources.title') || 'Resources'}
+                subtitle={t('resources.subtitle') || 'Available resources in your area'}
+                showBack
+                rightContent={
+                    <TouchableOpacity
+                        onPress={() => setShowModal(true)}
+                        style={{ width: 40, height: 40, backgroundColor: '#2563EB', borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                        <Plus size={22} color="white" strokeWidth={2.5} />
                     </TouchableOpacity>
-                    <View>
-                        <Text className="text-2xl font-black text-slate-900">{t('resources.title')}</Text>
-                        <Text className="text-slate-500 font-medium">{t('resources.subtitle')}</Text>
-                    </View>
-                </View>
-                <TouchableOpacity 
-                    onPress={() => setShowModal(true)}
-                    className="w-10 h-10 bg-[#0061ff] rounded-full items-center justify-center shadow-lg shadow-blue-500/25"
-                >
-                    <Plus size={24} color="white" />
-                </TouchableOpacity>
-            </View>
+                }
+            />
 
-            <View className="px-6 py-4 bg-white">
-                <View className="flex-row items-center bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl">
-                    <Search size={20} color="#94A3B8" />
-                    <TextInput 
-                        className="flex-1 ml-3 font-bold text-slate-900"
-                        placeholder={t('resources.search_placeholder') || "Search resources..."}
+            {/* Search bar */}
+            <View style={{ backgroundColor: 'white', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10 }}>
+                    <Search size={18} color="#94A3B8" strokeWidth={2} />
+                    <TextInput
                         value={searchQuery}
                         onChangeText={setSearchQuery}
+                        placeholder={t('resources.search_placeholder') || 'Search by type, owner or location…'}
+                        placeholderTextColor="#94A3B8"
+                        style={{ flex: 1, marginLeft: 10, fontSize: 14, color: '#0F172A' }}
                     />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <X size={16} color="#94A3B8" />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
 
-            <ScrollView className="flex-1 px-6 pt-4" showsVerticalScrollIndicator={false}>
-                {/* Stats Grid */}
-                <View className="flex-row flex-wrap -mx-2 mb-6">
-                    {stats.map((stat, i) => (
-                        <View key={i} className="w-1/2 px-2 mb-4">
-                            <View className="bg-white p-6 rounded-[1.5rem] items-center justify-center shadow-sm border border-slate-50">
-                                <Text className={`text-2xl font-black ${stat.color}`}>{stat.value}</Text>
-                                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</Text>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+
+                {/* Stats row */}
+                <View style={{ flexDirection: 'row', marginBottom: 20 }}>
+                    {STAT_KEYS.map((sk, i) => {
+                        const count = nearby.filter(r => sk.match(r.type?.toLowerCase() || '') && r.status === 'AVAILABLE').length;
+                        return (
+                            <View key={sk.label} style={{
+                                flex: 1,
+                                marginRight: i < STAT_KEYS.length - 1 ? 8 : 0,
+                                backgroundColor: 'white',
+                                borderRadius: 14,
+                                padding: 12,
+                                alignItems: 'center',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 1 },
+                                shadowOpacity: 0.05,
+                                shadowRadius: 4,
+                                elevation: 2,
+                            }}>
+                                <Text style={{ fontSize: 20, fontWeight: '900', color: sk.color }}>{count}</Text>
+                                <Text style={{ fontSize: 9, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 2, textAlign: 'center' }}>
+                                    {sk.label}
+                                </Text>
                             </View>
-                        </View>
-                    ))}
+                        );
+                    })}
                 </View>
 
+                {/* List */}
                 {loading ? (
-                    <View className="py-20 items-center justify-center">
-                        <ActivityIndicator size="large" color="#0061ff" />
-                        <Text className="text-slate-400 font-medium mt-4">{t('common.loading') || "Loading..."}</Text>
+                    <View style={{ paddingVertical: 80, alignItems: 'center' }}>
+                        <ActivityIndicator size="large" color="#2563EB" />
+                        <Text style={{ color: '#94A3B8', fontSize: 13, marginTop: 12 }}>{t('common.loading') || 'Loading…'}</Text>
                     </View>
-                ) : filteredResources.length === 0 ? (
-                    <View className="py-20 items-center">
-                        <Package size={64} color="#E2E8F0" />
-                        <Text className="text-slate-400 font-bold mt-4 text-center">
-                            {searchQuery ? `${t('resources.no_match') || "No matching resources found for"} "${searchQuery}"` : t('resources.no_resources') || 'No resources found. Add one to get started!'}
+                ) : filtered.length === 0 ? (
+                    <View style={{ backgroundColor: 'white', borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#E2E8F0', borderRadius: 20, padding: 40, alignItems: 'center' }}>
+                        <Package size={52} color="#E2E8F0" />
+                        <Text style={{ fontSize: 16, fontWeight: '800', color: '#475569', marginTop: 14, marginBottom: 6 }}>No Resources Found</Text>
+                        <Text style={{ color: '#94A3B8', textAlign: 'center', fontSize: 13, lineHeight: 20 }}>
+                            {searchQuery
+                                ? `No results for "${searchQuery}"`
+                                : `No resources listed in ${userDistrict || 'your area'} yet.`}
                         </Text>
                     </View>
                 ) : (
-                    <View className="space-y-4 pb-10">
-                        {filteredResources.map((resource) => (
-                            <View key={resource.id} className="bg-white border border-slate-50 rounded-3xl p-6 shadow-sm">
-                                <View className="flex-row justify-between items-start mb-4">
-                                    <View className="flex-1">
-                                        <Text className="text-lg font-black text-[#1e293b]">{resource.type}</Text>
-                                        <Text className="text-sm font-semibold text-slate-400">{resource.owner}</Text>
+                    filtered.map((resource) => {
+                        const { Icon, color, bg } = RESOURCE_ICON(resource.type || '');
+                        const sc = STATUS_CONFIG[resource.status] || STATUS_CONFIG.AVAILABLE;
+                        return (
+                            <View key={resource.id} style={{
+                                backgroundColor: 'white',
+                                borderRadius: 20,
+                                marginBottom: 12,
+                                overflow: 'hidden',
+                                shadowColor: '#000',
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.06,
+                                shadowRadius: 8,
+                                elevation: 3,
+                            }}>
+                                <View style={{ padding: 16 }}>
+                                    {/* Top row */}
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                                        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                                            <Icon size={24} color={color} strokeWidth={2} />
+                                        </View>
+                                        <View style={{ flex: 1, minWidth: 0 }}>
+                                            <Text style={{ fontSize: 15, fontWeight: '800', color: '#0F172A' }} numberOfLines={1}>{resource.type}</Text>
+                                            <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '500', marginTop: 1 }} numberOfLines={1}>{resource.owner}</Text>
+                                        </View>
+                                        <View style={{ backgroundColor: sc.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, flexShrink: 0, marginLeft: 8 }}>
+                                            <Text style={{ color: sc.text, fontSize: 10, fontWeight: '800' }}>{sc.label}</Text>
+                                        </View>
                                     </View>
-                                    <View className={`px-3 py-1 rounded-full ${resource.status === 'AVAILABLE' ? 'bg-green-50' : 'bg-slate-100'}`}>
-                                        <Text className={`text-[10px] font-bold uppercase tracking-wide ${resource.status === 'AVAILABLE' ? 'text-green-600' : 'text-slate-500'}`}>
-                                            {resource.status}
-                                        </Text>
-                                    </View>
-                                </View>
 
-                                <View className="space-y-2 mb-6">
-                                    <View className="flex-row items-center">
-                                        <View className="w-1 h-1 rounded-full bg-slate-300 mr-3" />
-                                        <Text className="text-sm font-semibold text-slate-400 flex-1">{resource.location}</Text>
+                                    {/* Details */}
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                                        <MapPin size={13} color="#94A3B8" strokeWidth={2} />
+                                        <Text style={{ color: '#64748B', fontSize: 12, marginLeft: 6, flex: 1 }} numberOfLines={1}>{resource.location}</Text>
                                     </View>
-                                    <View className="flex-row items-center">
-                                        <View className="w-1 h-1 rounded-full bg-slate-300 mr-3" />
-                                        <Text className="text-sm font-semibold text-slate-400 flex-1">{t('resources.capacity') || 'Capacity'}: {resource.capacity}</Text>
-                                    </View>
-                                </View>
+                                    {resource.capacity ? (
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                                            <Users size={13} color="#94A3B8" strokeWidth={2} />
+                                            <Text style={{ color: '#64748B', fontSize: 12, marginLeft: 6 }}>{t('resources.capacity') || 'Capacity'}: {resource.capacity}</Text>
+                                        </View>
+                                    ) : null}
 
-                                <View className="flex-row items-center justify-between pt-4 border-t border-slate-50">
-                                    <Text className="text-xs font-bold text-slate-400">{resource.contact}</Text>
-                                    <View className="flex-row space-x-4">
-                                        <TouchableOpacity 
-                                            onPress={() => Alert.alert(t('common.details') || 'Details', `Type: ${resource.type}\nOwner: ${resource.owner}\nLocation: ${resource.location}\nCapacity: ${resource.capacity}\nContact: ${resource.contact}`)}
-                                            className="p-2 bg-blue-50 rounded-full"
-                                        >
-                                            <Eye size={20} color="#2563EB" />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity 
-                                            onPress={() => Linking.openURL(`tel:${resource.contact}`)}
-                                            className="p-2 bg-blue-50 rounded-full"
-                                        >
-                                            <Phone size={20} color="#00AEEF" />
-                                        </TouchableOpacity>
+                                    {/* Footer */}
+                                    <View style={{ borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, marginTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '600', flex: 1 }} numberOfLines={1}>{resource.contact}</Text>
+                                        <View style={{ flexDirection: 'row' }}>
+                                            <TouchableOpacity
+                                                onPress={() => setShowDetail(resource)}
+                                                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#EFF6FF', alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}
+                                            >
+                                                <Info size={17} color="#2563EB" strokeWidth={2} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => Linking.openURL(`tel:${resource.contact}`)}
+                                                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}
+                                            >
+                                                <Phone size={17} color="#16A34A" strokeWidth={2} />
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                 </View>
                             </View>
-                        ))}
-                    </View>
+                        );
+                    })
                 )}
             </ScrollView>
 
-            {/* Modal */}
-            <Modal
-                visible={showModal}
-                animationType="slide"
-                transparent={true}
-                onRequestClose={() => setShowModal(false)}
-            >
-                <View className="flex-1 bg-black/40 justify-end">
-                    <View className="bg-white rounded-t-[2.5rem] p-8 space-y-6">
-                        <View className="flex-row items-center justify-between">
-                            <Text className="text-2xl font-black text-slate-900">{t('resources.form_title')}</Text>
-                            <TouchableOpacity onPress={() => setShowModal(false)} className="p-2 bg-slate-100 rounded-full">
-                                <X size={20} color="#64748b" />
-                            </TouchableOpacity>
-                        </View>
+            {/* Detail modal */}
+            <Modal visible={!!showDetail} animationType="fade" transparent onRequestClose={() => setShowDetail(null)}>
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', paddingHorizontal: 24 }}>
+                    {showDetail && (() => {
+                        const { Icon, color, bg } = RESOURCE_ICON(showDetail.type || '');
+                        const sc = STATUS_CONFIG[showDetail.status] || STATUS_CONFIG.AVAILABLE;
+                        return (
+                            <View style={{ backgroundColor: 'white', borderRadius: 24, padding: 24 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                                    <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                                        <Icon size={26} color={color} strokeWidth={2} />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 18, fontWeight: '900', color: '#0F172A' }}>{showDetail.type}</Text>
+                                        <View style={{ backgroundColor: sc.bg, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, marginTop: 4 }}>
+                                            <Text style={{ color: sc.text, fontSize: 11, fontWeight: '800' }}>{sc.label}</Text>
+                                        </View>
+                                    </View>
+                                    <TouchableOpacity onPress={() => setShowDetail(null)} style={{ padding: 6, backgroundColor: '#F1F5F9', borderRadius: 20 }}>
+                                        <X size={18} color="#64748B" />
+                                    </TouchableOpacity>
+                                </View>
 
-                        <View className="space-y-4">
-                            <View className="space-y-2">
-                                <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">{t('resources.type')}</Text>
-                                <TextInput 
-                                    className="bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl font-bold text-slate-900"
-                                    placeholder={t('resources.type_placeholder') || "e.g. Boat, Pickup Truck"}
-                                    value={formData.type}
-                                    onChangeText={(text) => setFormData({...formData, type: text})}
-                                />
+                                {[
+                                    { label: 'Owner', value: showDetail.owner },
+                                    { label: 'Location', value: showDetail.location },
+                                    { label: 'Capacity', value: showDetail.capacity },
+                                    { label: 'Contact', value: showDetail.contact },
+                                ].map(row => row.value ? (
+                                    <View key={row.label} style={{ marginBottom: 12 }}>
+                                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>{row.label}</Text>
+                                        <Text style={{ fontSize: 14, color: '#0F172A', fontWeight: '600' }}>{row.value}</Text>
+                                    </View>
+                                ) : null)}
+
+                                <TouchableOpacity
+                                    onPress={() => { setShowDetail(null); Linking.openURL(`tel:${showDetail.contact}`); }}
+                                    style={{ backgroundColor: '#16A34A', borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8 }}
+                                >
+                                    <Phone size={18} color="white" strokeWidth={2} />
+                                    <Text style={{ color: 'white', fontSize: 15, fontWeight: '800', marginLeft: 8 }}>Call {showDetail.owner}</Text>
+                                </TouchableOpacity>
                             </View>
-
-                            <View className="flex-row space-x-4">
-                                <View className="flex-1 space-y-2">
-                                    <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">{t('resources.owner') || "Owner Name"}</Text>
-                                    <TextInput 
-                                        className="bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl font-bold text-slate-900"
-                                        placeholder={t('resources.owner_placeholder') || "Full name"}
-                                        value={formData.owner}
-                                        onChangeText={(text) => setFormData({...formData, owner: text})}
-                                    />
-                                </View>
-                                <View className="flex-1 space-y-2">
-                                    <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">{t('resources.location')}</Text>
-                                    <TextInput 
-                                        className="bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl font-bold text-slate-900"
-                                        placeholder={t('resources.location_placeholder') || "City/Area"}
-                                        value={formData.location}
-                                        onChangeText={(text) => setFormData({...formData, location: text})}
-                                    />
-                                </View>
-                            </View>
-
-                            <View className="flex-row space-x-4">
-                                <View className="flex-1 space-y-2">
-                                    <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">{t('resources.capacity')}</Text>
-                                    <TextInput 
-                                        className="bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl font-bold text-slate-900"
-                                        placeholder={t('resources.capacity_placeholder') || "e.g. 6 people, 5kW"}
-                                        value={formData.capacity}
-                                        onChangeText={(text) => setFormData({...formData, capacity: text})}
-                                    />
-                                </View>
-                                <View className="flex-1 space-y-2">
-                                    <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">{t('resources.contact') || "Contact Number"}</Text>
-                                    <TextInput 
-                                        className="bg-slate-50 border border-slate-100 px-4 py-3 rounded-2xl font-bold text-slate-900"
-                                        placeholder={t('resources.contact_placeholder') || "Phone number"}
-                                        keyboardType="phone-pad"
-                                        value={formData.contact}
-                                        onChangeText={(text) => setFormData({...formData, contact: text})}
-                                    />
-                                </View>
-                            </View>
-
-                            <TouchableOpacity 
-                                disabled={isSubmitting}
-                                onPress={handleSubmit}
-                                className="bg-[#0061ff] py-5 rounded-2xl items-center shadow-xl shadow-blue-500/25 mt-4"
-                            >
-                                {isSubmitting ? (
-                                    <ActivityIndicator color="white" />
-                                ) : (
-                                    <Text className="text-white font-black text-lg">{t('resources.submit')}</Text>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                        );
+                    })()}
                 </View>
             </Modal>
-        </SafeAreaView>
+
+            {/* Add resource modal */}
+            <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
+                <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+                        <View style={{ backgroundColor: 'white', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%' }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 24, paddingBottom: 16 }}>
+                                <Text style={{ fontSize: 20, fontWeight: '900', color: '#0F172A' }}>
+                                    {t('resources.form_title') || 'Add Resource'}
+                                </Text>
+                                <TouchableOpacity onPress={() => setShowModal(false)} style={{ padding: 6, backgroundColor: '#F1F5F9', borderRadius: 20 }}>
+                                    <X size={20} color="#64748B" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                <Field
+                                    label={t('resources.type') || 'Resource Type *'}
+                                    value={formData.type}
+                                    placeholder={t('resources.type_placeholder') || 'e.g. Boat, Pickup Truck, Generator'}
+                                    onChangeText={(v: string) => setFormData(f => ({ ...f, type: v }))}
+                                />
+                                <Field
+                                    label={t('resources.owner') || 'Owner Name *'}
+                                    value={formData.owner}
+                                    placeholder={t('resources.owner_placeholder') || 'Full name'}
+                                    onChangeText={(v: string) => setFormData(f => ({ ...f, owner: v }))}
+                                />
+                                <Field
+                                    label={t('resources.location') || 'Location *'}
+                                    value={formData.location}
+                                    placeholder={t('resources.location_placeholder') || 'City / area'}
+                                    onChangeText={(v: string) => setFormData(f => ({ ...f, location: v }))}
+                                />
+                                <Field
+                                    label={t('resources.capacity') || 'Capacity'}
+                                    value={formData.capacity}
+                                    placeholder={t('resources.capacity_placeholder') || 'e.g. 6 people, 5 kW'}
+                                    onChangeText={(v: string) => setFormData(f => ({ ...f, capacity: v }))}
+                                />
+                                <Field
+                                    label={t('resources.contact') || 'Contact Number *'}
+                                    value={formData.contact}
+                                    placeholder={t('resources.contact_placeholder') || 'Phone number'}
+                                    keyboardType="phone-pad"
+                                    onChangeText={(v: string) => setFormData(f => ({ ...f, contact: v }))}
+                                />
+
+                                <TouchableOpacity
+                                    onPress={handleSubmit}
+                                    disabled={isSubmitting}
+                                    style={{ backgroundColor: '#2563EB', borderRadius: 16, padding: 16, alignItems: 'center' }}
+                                >
+                                    {isSubmitting
+                                        ? <ActivityIndicator size="small" color="white" />
+                                        : <Text style={{ color: 'white', fontSize: 16, fontWeight: '900' }}>{t('resources.submit') || 'Add Resource'}</Text>
+                                    }
+                                </TouchableOpacity>
+                            </ScrollView>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
+        </View>
     );
 }
-

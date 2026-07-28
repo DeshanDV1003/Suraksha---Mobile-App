@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StatusBar } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { EmergencyCard } from '../components/HomeScreen/EmergencyCard';
 import { RecentAlertItem } from '../components/HomeScreen/RecentAlertItem';
 import { ReportSummaryItem } from '../components/HomeScreen/ReportSummaryItem';
 import {
+    Bell,
     AlertCircle,
     Users,
     CheckCircle2,
@@ -23,9 +24,15 @@ import {
     HeartPulse,
     Globe,
     Waves,
+    ShieldCheck,
+    Route,
 } from 'lucide-react-native';
 import { ActionGridCard } from '../components/common/ActionGridCard';
 import { dashboardService, incidentService, alertService } from '../services/api';
+import { getCache, setCache } from '../services/cache';
+import { useUserLocation } from '../context/LocationContext';
+import { useIsVolunteer } from '../context/UserContext';
+import { isAlertNearby } from '../utils/distance';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -33,12 +40,12 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
 
-const SectionHeader = ({ title, onViewAll }: { title: string; onViewAll?: () => void }) => (
+const SectionHeader = ({ title, onViewAll, viewAllLabel }: { title: string; onViewAll?: () => void; viewAllLabel?: string }) => (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, marginTop: 24 }}>
         <Text style={{ color: '#0F172A', fontSize: 17, fontWeight: '800', letterSpacing: -0.3 }}>{title}</Text>
         {onViewAll && (
             <TouchableOpacity onPress={onViewAll} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '700' }}>View all</Text>
+                <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '700' }}>{viewAllLabel || 'View all'}</Text>
                 <ChevronRight size={16} color="#2563EB" strokeWidth={2.5} />
             </TouchableOpacity>
         )}
@@ -53,31 +60,54 @@ export default function HomeScreen() {
     const [reports, setReports] = useState<any[]>([]);
     const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
     const [userName, setUserName] = useState('');
+    const userLocation = useUserLocation();
+    const isVolunteer = useIsVolunteer();
 
     const fetchStats = async () => {
-        try {
-            const stored = await AsyncStorage.getItem('user');
-            if (stored) setUserName(JSON.parse(stored)?.name?.split(' ')[0] || '');
+        // 1. Show cached data immediately — no waiting
+        const stored = await AsyncStorage.getItem('user');
+        if (stored) setUserName(JSON.parse(stored)?.name?.split(' ')[0] || '');
 
+        const [cachedStats, cachedReports, cachedAlerts] = await Promise.all([
+            getCache<any>('home_stats'),
+            getCache<any[]>('home_reports'),
+            getCache<any[]>('home_alerts'),
+        ]);
+        if (cachedStats)   setStats(cachedStats);
+        if (cachedReports) setReports(cachedReports);
+        if (cachedAlerts)  setRecentAlerts(cachedAlerts);
+
+        // 2. Refresh from network silently
+        try {
             const [statsRes, reportsRes, alertsRes] = await Promise.all([
-                dashboardService.getStats(),
-                incidentService.getMyReports(),
-                alertService.getAlerts().catch(() => ({ data: [] })),
+                dashboardService.getStats().catch(() => null),
+                incidentService.getMyReports().catch(() => null),
+                alertService.getAlerts().catch(() => null),
             ]);
-            setStats(statsRes.data);
-            setReports(reportsRes.data);
-            setRecentAlerts((alertsRes.data || []).slice(0, 3));
-        } catch (error) {
-            console.error('Failed to fetch data:', error);
-        }
+            if (statsRes?.data)   { setStats(statsRes.data);   setCache('home_stats', statsRes.data); }
+            if (reportsRes?.data) { setReports(reportsRes.data); setCache('home_reports', reportsRes.data); }
+            if (alertsRes?.data)  {
+                const all = alertsRes.data || [];
+                const nearby = userLocation
+                    ? all.filter((a: any) => isAlertNearby(a, userLocation.lat, userLocation.lng))
+                    : all;
+                const top3 = nearby.slice(0, 3);
+                setRecentAlerts(top3);
+                setCache('home_alerts', top3);
+            }
+        } catch {}
     };
 
-    useEffect(() => {
-        fetchStats();
-    }, []);
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchStats();
+        }, [])
+    );
 
-    const activeCount = stats?.recentIncidents?.filter((i: any) => i.status !== 'RESOLVED').length || 0;
-    const resolvedCount = stats?.recentIncidents?.filter((i: any) => i.status === 'RESOLVED').length || 0;
+    // Citizen-relevant stats: their own reports + nearby alerts
+    const myReportCount = reports.length;
+    const myPendingCount = reports.filter((r: any) => r.status !== 'RESOLVED').length;
+    const nearbyAlertCount = recentAlerts.length;
 
     return (
         <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
@@ -113,19 +143,19 @@ export default function HomeScreen() {
                 {/* Stats row inside header */}
                 <View style={{ flexDirection: 'row', marginTop: 20 }}>
                     <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 14, marginRight: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
-                        <AlertCircle size={18} color="rgba(255,255,255,0.8)" strokeWidth={2} />
-                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{activeCount}</Text>
-                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>Active</Text>
+                        <Bell size={18} color="rgba(255,255,255,0.8)" strokeWidth={2} />
+                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{nearbyAlertCount}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>{t('home.nearby_alerts')}</Text>
                     </View>
                     <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 14, marginRight: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
-                        <Users size={18} color="rgba(255,255,255,0.8)" strokeWidth={2} />
-                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{stats?.volunteersActive || 0}</Text>
-                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>Volunteers</Text>
+                        <ClipboardList size={18} color="rgba(255,255,255,0.8)" strokeWidth={2} />
+                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{myReportCount}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>{t('home.my_reports')}</Text>
                     </View>
                     <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
                         <CheckCircle2 size={18} color="rgba(255,255,255,0.8)" strokeWidth={2} />
-                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{resolvedCount}</Text>
-                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>Resolved</Text>
+                        <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginTop: 6 }}>{myPendingCount}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '600' }}>{t('home.pending')}</Text>
                     </View>
                 </View>
             </LinearGradient>
@@ -138,11 +168,11 @@ export default function HomeScreen() {
                 <EmergencyCard onReportPress={() => navigation.navigate('Report')} />
 
                 {/* Recent Alerts */}
-                <SectionHeader title={t('home.recent_alerts') || 'Recent Alerts'} onViewAll={() => navigation.navigate('Alerts')} />
+                <SectionHeader title={t('home.recent_alerts')} onViewAll={() => navigation.navigate('Alerts')} viewAllLabel={t('common.view_all')} />
 
                 {recentAlerts.length === 0 ? (
                     <View style={{ backgroundColor: 'white', borderRadius: 18, padding: 20, alignItems: 'center', marginBottom: 4 }}>
-                        <Text style={{ color: '#94A3B8', fontSize: 14, fontWeight: '600' }}>No active alerts</Text>
+                        <Text style={{ color: '#94A3B8', fontSize: 14, fontWeight: '600' }}>{t('home.no_active_alerts')}</Text>
                     </View>
                 ) : (
                     recentAlerts.map((alert) => (
@@ -157,11 +187,11 @@ export default function HomeScreen() {
                 )}
 
                 {/* Your Reports */}
-                <SectionHeader title={t('home.your_reports') || 'Your Reports'} />
+                <SectionHeader title={t('home.your_reports')} />
 
                 {reports.length === 0 ? (
                     <View style={{ backgroundColor: 'white', borderRadius: 18, padding: 20, alignItems: 'center' }}>
-                        <Text style={{ color: '#94A3B8', fontSize: 14, fontWeight: '600' }}>No reports yet</Text>
+                        <Text style={{ color: '#94A3B8', fontSize: 14, fontWeight: '600' }}>{t('home.no_reports_yet')}</Text>
                     </View>
                 ) : (
                     reports.slice(0, 3).map((report) => (
@@ -192,7 +222,9 @@ export default function HomeScreen() {
                 </View>
                 <View style={{ flexDirection: 'row' }}>
                     <ActionGridCard label={t('home.relief_camps') || 'Relief Camps'} icon={Building2} onPress={() => navigation.navigate('ReliefCamps')} bgColor="#7C3AED" />
-                    <ActionGridCard label={t('home.my_token') || 'My Token'} icon={QrCode} onPress={() => navigation.navigate('ReliefToken')} bgColor="#0D9488" />
+                    {isVolunteer && (
+                        <ActionGridCard label={t('home.my_token') || 'My Token'} icon={QrCode} onPress={() => navigation.navigate('ReliefToken')} bgColor="#0D9488" />
+                    )}
                 </View>
 
                 {/* Information & Support */}
@@ -207,8 +239,9 @@ export default function HomeScreen() {
                 </View>
                 <View style={{ flexDirection: 'row' }}>
                     <ActionGridCard label={t('home.donate') || 'Donate'} icon={Banknote} onPress={() => navigation.navigate('Donate')} bgColor="#059669" />
-                    <ActionGridCard label="Water Levels" icon={Waves} onPress={() => navigation.navigate('WaterLevel')} bgColor="#0369A1" />
-                    <View style={{ flex: 1, margin: 6 }} />
+                    <ActionGridCard label={t('home.water_levels')} icon={Waves} onPress={() => navigation.navigate('WaterLevel')} bgColor="#0369A1" />
+                    <ActionGridCard label={t('home.safe_zones')} icon={ShieldCheck} onPress={() => navigation.navigate('SafeZone')} bgColor="#16A34A" />
+                    <ActionGridCard label={t('home.safe_route')} icon={Route} onPress={() => navigation.navigate('SafeRoute')} bgColor="#7C3AED" />
                 </View>
 
                 <View style={{ height: 16 }} />

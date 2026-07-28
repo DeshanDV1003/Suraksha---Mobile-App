@@ -1,298 +1,432 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, Alert, Switch } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { HeartPulse, Plus, X, Shield, Users, Clock, MessageSquare, Heart, Sparkles, ChevronLeft } from 'lucide-react-native';
+import React, { useState, useCallback } from 'react';
+import {
+    View, Text, ScrollView, TouchableOpacity, TextInput,
+    Modal, ActivityIndicator, Switch, KeyboardAvoidingView, Platform,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { Header } from '../components/common/Header';
+import {
+    HeartPulse, Shield, Heart, Sparkles, X, CheckCircle2,
+    Clock, Users, ChevronDown, Phone,
+} from 'lucide-react-native';
 import { supportService } from '../services/api';
-import { useNavigation } from '@react-navigation/native';
 import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 import { useToast } from '../context/ToastContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
-import { Picker } from '@react-native-picker/picker';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useTranslation } from 'react-i18next';
+
+const SUPPORT_TYPES = [
+    { value: 'TRAUMA_CARE',    label: 'Trauma Care' },
+    { value: 'GRIEF_SUPPORT',  label: 'Grief Support' },
+    { value: 'COUNSELING',     label: 'Counseling' },
+    { value: 'CHILD_SUPPORT',  label: 'Child Support' },
+];
+
+const URGENCY_LEVELS = [
+    { value: 'LOW',      label: 'Routine',   color: '#10B981', bg: '#D1FAE5' },
+    { value: 'MEDIUM',   label: 'Immediate', color: '#F59E0B', bg: '#FEF3C7' },
+    { value: 'HIGH',     label: 'Urgent',    color: '#F97316', bg: '#FFEDD5' },
+    { value: 'CRITICAL', label: 'Crisis',    color: '#EF4444', bg: '#FEE2E2' },
+];
+
+const INITIAL_FORM = {
+    type: 'TRAUMA_CARE',
+    description: '',
+    urgency: 'MEDIUM',
+    anonymous: false,
+    location: '',
+    affectedCount: '1',
+};
+
+interface Submitted {
+    type: string;
+    urgency: string;
+    description: string;
+    anonymous: boolean;
+    submittedAt: Date;
+    queued: boolean;
+}
 
 export default function SupportScreen() {
-    const navigation = useNavigation();
     const { t } = useTranslation();
-    const [requests, setRequests] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [formData, setFormData] = useState({
-        type: 'TRAUMA_CARE',
-        description: '',
-        urgency: 'MEDIUM',
-        anonymous: false,
-        location: '',
-        affectedCount: '1'
-    });
-
-    const fetchData = async () => {
-        try {
-            setLoading(true);
-            const res = await supportService.getRequests();
-            setRequests(res.data);
-        } catch (error) {
-            console.error('Failed to fetch support requests:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
-    const { submit } = useOfflineSubmit('PSYCHOLOGICAL_SUPPORT', '/api/support');
     const toast = useToast();
 
+    const [requests, setRequests]     = useState<any[]>([]);
+    const [isOfficer, setIsOfficer]   = useState(false);
+    const [showModal, setShowModal]   = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitted, setSubmitted]   = useState<Submitted | null>(null);
+    const [formData, setFormData]     = useState({ ...INITIAL_FORM });
+
+    const { submit } = useOfflineSubmit('PSYCHOLOGICAL_SUPPORT', '/support');
+
+    const fetchData = useCallback(async () => {
+        try {
+            const res = await supportService.getRequests();
+            setRequests(res.data || []);
+            setIsOfficer(true);
+        } catch (error: any) {
+            if (error?.response?.status !== 403) {
+                console.error('Failed to fetch support requests:', error);
+            }
+            setIsOfficer(false);
+        }
+    }, []);
+
+    useFocusEffect(useCallback(() => { fetchData(); }, [fetchData]));
+
+    const selectedUrgency = URGENCY_LEVELS.find(u => u.value === formData.urgency) ?? URGENCY_LEVELS[1];
+    const selectedType    = SUPPORT_TYPES.find(s => s.value === formData.type) ?? SUPPORT_TYPES[0];
+
     const handleSubmit = async () => {
-        if (!formData.description) {
-            toast.error(t('common.error') || 'Error', t('support.fill_desc') || 'Please share how we can help');
+        if (!formData.description.trim()) {
+            toast.error(t('common.error') || 'Error', 'Please share how we can help you.');
             return;
         }
-
-        const data = {
-            ...formData,
-            affectedCount: parseInt(formData.affectedCount),
-        };
-
+        setIsSubmitting(true);
         try {
-            setIsSubmitting(true);
+            const data = { ...formData, affectedCount: parseInt(formData.affectedCount) || 1 };
             const result = await submit(data);
-            
+
+            setSubmitted({
+                type: selectedType.label,
+                urgency: selectedUrgency.label,
+                description: formData.description,
+                anonymous: formData.anonymous,
+                submittedAt: new Date(),
+                queued: !!result.queued,
+            });
+
             if (result.queued) {
-                toast.warning(t('common.offline_queued') || 'Queued', 'You are offline. Your request will be submitted when you reconnect.');
+                toast.warning(t('common.offline_queued') || 'Queued', 'Your request will be sent when you reconnect.');
             } else {
-                toast.success(t('common.success') || 'Request Submitted', t('support.request_success') || 'A counselor will contact you soon.');
+                toast.success(t('common.success') || 'Submitted', 'A counselor will reach out to you soon.');
             }
-            
             setShowModal(false);
-            setFormData({ type: 'TRAUMA_CARE', description: '', urgency: 'MEDIUM', anonymous: false, location: '', affectedCount: '1' });
+            setFormData({ ...INITIAL_FORM });
             fetchData();
-        } catch (error) {
-            console.error('Failed to submit support request:', error);
-            toast.error(t('common.error') || 'Error', t('common.report_fail') || 'Failed to submit request');
+        } catch (err) {
+            console.error('Failed to submit support request:', err);
+            toast.error(t('common.error') || 'Error', 'Failed to submit request. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#F0F4FF" }}>
-            <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-                {/* Header Section */}
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
+            <Header title={t('support.title') || 'Counseling & Support'} subtitle={t('support.subtitle') || 'Professional mental well-being'} showBack />
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
+
+                {/* Hero banner */}
                 <LinearGradient
                     colors={['#4F46E5', '#7C3AED', '#EC4899']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    className="p-8 pt-12 rounded-b-[3rem] space-y-6"
+                    style={{ marginHorizontal: 16, marginTop: 16, borderRadius: 28, padding: 24 }}
                 >
-                    <View className="flex-row items-center justify-between">
-                        <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 bg-white/10 rounded-full border border-white/10">
-                            <ChevronLeft size={24} color="white" />
-                        </TouchableOpacity>
-                        <View className="flex-row items-center space-x-2 bg-white/10 px-4 py-2 rounded-full border border-white/10">
-                            <Sparkles size={14} color="#FDE047" />
-                            <Text className="text-white text-[10px] font-black uppercase tracking-widest">{t('support.wellbeing') || 'Mental Well-being'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                        <View style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, flexDirection: 'row', alignItems: 'center' }}>
+                            <Sparkles size={13} color="#FDE047" />
+                            <Text style={{ color: 'white', fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.5, marginLeft: 6 }}>
+                                Mental Well-being
+                            </Text>
                         </View>
                     </View>
 
-                    <View className="space-y-4">
-                        <Text className="text-4xl font-black text-white leading-tight">{t('support.header_title') || 'You are not alone in this.'}</Text>
-                        <Text className="text-white/80 font-medium text-base">
-                            {t('support.header_desc') || "Disasters are overwhelming. Our certified trauma counselors are available 24/7 to help you."}
-                        </Text>
-                    </View>
+                    <Text style={{ color: 'white', fontSize: 24, fontWeight: '900', lineHeight: 30, marginBottom: 10 }}>
+                        {t('support.header_title') || 'You are not alone in this.'}
+                    </Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '500', lineHeight: 22, marginBottom: 20 }}>
+                        {t('support.header_desc') || 'Disasters are overwhelming. Our certified trauma counselors are available 24/7 to help you.'}
+                    </Text>
 
-                    <View className="flex-row space-x-4 pt-2">
-                        <TouchableOpacity 
-                            onPress={() => setShowModal(true)}
-                            className="bg-white px-6 py-4 rounded-2xl flex-1 items-center shadow-lg"
-                        >
-                            <Text className="text-indigo-600 font-black">{t('support.talk_now') || 'Talk to a Counselor'}</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                        onPress={() => setShowModal(true)}
+                        activeOpacity={0.85}
+                        style={{ backgroundColor: 'white', borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}
+                    >
+                        <Text style={{ color: '#4F46E5', fontSize: 15, fontWeight: '900' }}>
+                            {t('support.talk_now') || 'Talk to a Counselor'}
+                        </Text>
+                    </TouchableOpacity>
                 </LinearGradient>
 
-                <View className="px-6 py-8 space-y-8">
-                    <View className="flex-row items-center justify-between">
-                        <Text className="text-2xl font-black text-slate-900 tracking-tight">{t('support.active_sessions') || 'Active Sessions'}</Text>
-                        <View className="flex-row items-center space-x-2">
-                            <View className="w-2 h-2 bg-green-500 rounded-full" />
-                            <Text className="text-slate-400 font-bold text-xs uppercase tracking-widest">{t('support.online') || 'Counselors Online'}</Text>
+                {/* Post-submit confirmation */}
+                {submitted && (
+                    <View style={{ marginHorizontal: 16, marginTop: 20, backgroundColor: submitted.queued ? '#FFFBEB' : '#F0FDF4', borderWidth: 1.5, borderColor: submitted.queued ? '#FCD34D' : '#86EFAC', borderRadius: 24, padding: 20 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                            <CheckCircle2 size={22} color={submitted.queued ? '#F59E0B' : '#16A34A'} strokeWidth={2.5} />
+                            <Text style={{ color: submitted.queued ? '#92400E' : '#15803D', fontSize: 15, fontWeight: '900', marginLeft: 10 }}>
+                                {submitted.queued ? 'Saved — Will Sync Later' : 'Request Submitted'}
+                            </Text>
+                        </View>
+                        <View style={{ backgroundColor: 'white', borderRadius: 16, padding: 16 }}>
+                            <Row label="Support Type" value={submitted.type} />
+                            <Row label="Urgency" value={submitted.urgency} />
+                            <Row label="Identity" value={submitted.anonymous ? 'Anonymous' : 'Named'} />
+                            <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '700', marginTop: 10, marginBottom: 4 }}>Your Message</Text>
+                            <Text style={{ color: '#334155', fontSize: 13, lineHeight: 20 }} numberOfLines={3}>{submitted.description}</Text>
+                            <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 10 }}>{submitted.submittedAt.toLocaleString()}</Text>
+                        </View>
+                        <TouchableOpacity onPress={() => setSubmitted(null)} style={{ marginTop: 12, alignItems: 'center' }}>
+                            <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '600' }}>Dismiss</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* Officer: active sessions list */}
+                {isOfficer && (
+                    <View style={{ marginHorizontal: 16, marginTop: 24 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                            <Text style={{ color: '#0F172A', fontSize: 18, fontWeight: '900' }}>
+                                {t('support.active_sessions') || 'Active Sessions'}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={{ width: 8, height: 8, backgroundColor: '#10B981', borderRadius: 4, marginRight: 6 }} />
+                                <Text style={{ color: '#64748B', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                    {t('support.online') || 'Counselors Online'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {requests.length === 0 ? (
+                            <View style={{ backgroundColor: 'white', borderRadius: 24, padding: 40, alignItems: 'center', borderWidth: 1, borderColor: '#F1F5F9' }}>
+                                <HeartPulse size={40} color="#818CF8" strokeWidth={1.5} />
+                                <Text style={{ color: '#0F172A', fontSize: 16, fontWeight: '900', marginTop: 16, marginBottom: 6 }}>
+                                    {t('support.no_requests') || 'No Active Requests'}
+                                </Text>
+                                <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', lineHeight: 20 }}>
+                                    No pending support sessions right now.
+                                </Text>
+                            </View>
+                        ) : (
+                            requests.map(req => {
+                                const urg = URGENCY_LEVELS.find(u => u.value === req.urgency) ?? URGENCY_LEVELS[1];
+                                return (
+                                    <View key={req.id} style={{ backgroundColor: 'white', borderRadius: 24, padding: 20, marginBottom: 12, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 2 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                                            <View style={{ backgroundColor: urg.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, marginRight: 8 }}>
+                                                <Text style={{ color: urg.color, fontSize: 11, fontWeight: '800', textTransform: 'uppercase' }}>{urg.label}</Text>
+                                            </View>
+                                            <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>{req.type?.replace('_', ' ')}</Text>
+                                        </View>
+                                        <Text style={{ color: '#0F172A', fontSize: 15, fontWeight: '800', marginBottom: 6 }}>
+                                            {req.anonymous ? 'Anonymous Support Request' : `Session for ${req.user?.name || 'User'}`}
+                                        </Text>
+                                        <Text style={{ color: '#475569', fontSize: 13, lineHeight: 20, marginBottom: 14 }} numberOfLines={3}>
+                                            {req.description}
+                                        </Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F8FAFC' }}>
+                                            <Clock size={13} color="#94A3B8" strokeWidth={2} />
+                                            <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600', marginLeft: 5, marginRight: 16 }}>{dayjs(req.createdAt).fromNow()}</Text>
+                                            <Users size={13} color="#94A3B8" strokeWidth={2} />
+                                            <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600', marginLeft: 5 }}>{req.affectedCount ?? 1} affected</Text>
+                                        </View>
+                                    </View>
+                                );
+                            })
+                        )}
+                    </View>
+                )}
+
+                {/* Why Speak Up */}
+                <View style={{ marginHorizontal: 16, marginTop: 24, backgroundColor: 'white', borderRadius: 24, padding: 24, borderWidth: 1, borderColor: '#F1F5F9' }}>
+                    <Text style={{ color: '#0F172A', fontSize: 18, fontWeight: '900', marginBottom: 20 }}>
+                        {t('support.why_speak') || 'Why Speak Up?'}
+                    </Text>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 }}>
+                        <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', marginRight: 16, flexShrink: 0 }}>
+                            <Shield size={26} color="#6366F1" strokeWidth={2} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#0F172A', fontSize: 14, fontWeight: '900', marginBottom: 4 }}>
+                                {t('support.confidential') || '100% Confidential'}
+                            </Text>
+                            <Text style={{ color: '#64748B', fontSize: 13, lineHeight: 20 }}>
+                                {t('support.confidential_desc') || 'Your identity can remain anonymous throughout the process.'}
+                            </Text>
                         </View>
                     </View>
 
-                    {loading ? (
-                        <View className="py-12 items-center">
-                            <ActivityIndicator size="large" color="#4F46E5" />
-                            <Text className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-4">{t('support.scanning')}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 }}>
+                        <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#FDF2F8', alignItems: 'center', justifyContent: 'center', marginRight: 16, flexShrink: 0 }}>
+                            <Heart size={26} color="#EC4899" strokeWidth={2} />
                         </View>
-                    ) : requests.length === 0 ? (
-                        <View className="bg-white border border-slate-100 rounded-[3rem] p-12 items-center space-y-6 shadow-sm">
-                            <View className="w-20 h-20 bg-indigo-50 rounded-full items-center justify-center">
-                                <HeartPulse size={40} color="#818CF8" />
-                            </View>
-                            <View className="items-center">
-                                <Text className="text-xl font-black text-slate-900">{t('support.no_requests')}</Text>
-                                <Text className="text-slate-400 text-center font-medium mt-1">{t('support.no_requests_desc') || "Don't hesitate to reach out if you need someone to talk to."}</Text>
-                            </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#0F172A', fontSize: 14, fontWeight: '900', marginBottom: 4 }}>
+                                {t('support.expert_care') || 'Expert Care'}
+                            </Text>
+                            <Text style={{ color: '#64748B', fontSize: 13, lineHeight: 20 }}>
+                                {t('support.expert_desc') || 'Certified trauma specialists with emergency experience.'}
+                            </Text>
                         </View>
-                    ) : (
-                        <View className="space-y-6">
-                            {requests.map((request) => (
-                                <View key={request.id} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm">
-                                    <View className="flex-row items-center space-x-3 mb-4">
-                                        <View className={`px-4 py-1.5 rounded-full ${request.urgency === 'CRITICAL' ? 'bg-red-50' : 'bg-blue-50'}`}>
-                                            <Text className={`text-[10px] font-black uppercase tracking-widest ${request.urgency === 'CRITICAL' ? 'text-red-600' : 'text-blue-600'}`}>
-                                                {request.urgency} {t('support.priority_suffix') || 'Priority'}
-                                            </Text>
-                                        </View>
-                                        <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{request.type}</Text>
-                                    </View>
+                    </View>
 
-                                    <Text className="text-xl font-black text-slate-900 leading-tight mb-2">
-                                        {request.anonymous ? t('support.anonymous_req') || 'Anonymous Support Request' : `${t('support.session_for') || 'Session for'} ${request.user?.name || 'User'}`}
-                                    </Text>
-                                    <Text className="text-slate-500 font-medium leading-relaxed mb-6" numberOfLines={3}>
-                                        {request.description}
-                                    </Text>
-                                    
-                                    <View className="flex-row items-center space-x-6 pt-6 border-t border-slate-50">
-                                        <View className="flex-row items-center space-x-2">
-                                            <Clock size={16} color="#94A3B8" />
-                                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {dayjs(request.createdAt).fromNow()}
-                                            </Text>
-                                        </View>
-                                        <View className="flex-row items-center space-x-2">
-                                            <Users size={16} color="#94A3B8" />
-                                            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{request.affectedCount} {t('common.affected') || 'Affected'}</Text>
-                                        </View>
-                                    </View>
-                                </View>
-                            ))}
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                        <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: '#F0FDF4', alignItems: 'center', justifyContent: 'center', marginRight: 16, flexShrink: 0 }}>
+                            <Phone size={26} color="#10B981" strokeWidth={2} />
                         </View>
-                    )}
-
-                    {/* Why speak up section */}
-                    <View className="bg-white border border-slate-100 rounded-[3rem] p-10 space-y-8 shadow-sm">
-                        <Text className="text-2xl font-black text-slate-900">{t('support.why_speak') || 'Why Speak Up?'}</Text>
-                        <View className="space-y-6">
-                            <View className="flex-row space-x-5">
-                                <View className="w-14 h-14 rounded-2xl bg-indigo-50 items-center justify-center">
-                                    <Shield size={28} color="#6366F1" />
-                                </View>
-                                <View className="flex-1">
-                                    <Text className="font-black text-slate-900">{t('support.confidential') || '100% Confidential'}</Text>
-                                    <Text className="text-sm text-slate-500 font-medium leading-relaxed mt-1">{t('support.confidential_desc') || "Your identity can remain anonymous throughout the process."}</Text>
-                                </View>
-                            </View>
-                            <View className="flex-row space-x-5">
-                                <View className="w-14 h-14 rounded-2xl bg-pink-50 items-center justify-center">
-                                    <Heart size={28} color="#EC4899" />
-                                </View>
-                                <View className="flex-1">
-                                    <Text className="font-black text-slate-900">{t('support.expert_care') || 'Expert Care'}</Text>
-                                    <Text className="text-sm text-slate-500 font-medium leading-relaxed mt-1">{t('support.expert_desc') || "Certified trauma specialists with emergency experience."}</Text>
-                                </View>
-                            </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#0F172A', fontSize: 14, fontWeight: '900', marginBottom: 4 }}>Available 24/7</Text>
+                            <Text style={{ color: '#64748B', fontSize: 13, lineHeight: 20 }}>
+                                Support is available any time of day or night during and after a disaster.
+                            </Text>
                         </View>
                     </View>
                 </View>
             </ScrollView>
 
-            {/* Modal */}
-            <Modal
-                visible={showModal}
-                animationType="slide"
-                transparent={true}
-                onRequestClose={() => setShowModal(false)}
-            >
-                <View className="flex-1 bg-indigo-950/40 justify-end">
-                    <View className="bg-white rounded-t-[3.5rem] p-10 space-y-8">
-                        <View className="flex-row items-center justify-between">
-                            <Text className="text-2xl font-black text-slate-900">{t('support.form_title')}</Text>
-                            <TouchableOpacity onPress={() => setShowModal(false)} className="p-2 bg-slate-100 rounded-full">
-                                <X size={24} color="#64748b" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <ScrollView className="space-y-6 max-h-[500px]">
-                            <View className="flex-row space-x-4">
-                                <View className="flex-1 space-y-2">
-                                    <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{t('support.topic')}</Text>
-                                    <View className="bg-slate-50 border border-slate-100 rounded-3xl overflow-hidden">
-                                        <Picker
-                                            selectedValue={formData.type}
-                                            onValueChange={(itemValue) => setFormData({...formData, type: itemValue})}
-                                        >
-                                            <Picker.Item label={t('support.cat_trauma') || "Trauma Care"} value="TRAUMA_CARE" />
-                                            <Picker.Item label={t('support.cat_grief') || "Grief Support"} value="GRIEF_SUPPORT" />
-                                            <Picker.Item label={t('support.cat_counseling') || "Counseling"} value="COUNSELING" />
-                                            <Picker.Item label={t('support.cat_child') || "Child Support"} value="CHILD_SUPPORT" />
-                                        </Picker>
-                                    </View>
-                                </View>
-                                <View className="flex-1 space-y-2">
-                                    <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{t('support.urgency')}</Text>
-                                    <View className="bg-slate-50 border border-slate-100 rounded-3xl overflow-hidden">
-                                        <Picker
-                                            selectedValue={formData.urgency}
-                                            onValueChange={(itemValue) => setFormData({...formData, urgency: itemValue})}
-                                        >
-                                            <Picker.Item label={t('common.urgency_low') || "Routine"} value="LOW" />
-                                            <Picker.Item label={t('common.urgency_medium') || "Immediate"} value="MEDIUM" />
-                                            <Picker.Item label={t('common.urgency_high') || "Urgent"} value="HIGH" />
-                                            <Picker.Item label={t('common.urgency_critical') || "Crisis"} value="CRITICAL" />
-                                        </Picker>
-                                    </View>
-                                </View>
+            {/* Request modal */}
+            <Modal visible={showModal} animationType="slide" transparent onRequestClose={() => setShowModal(false)}>
+                <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(79,70,229,0.3)', justifyContent: 'flex-end' }}>
+                        <View style={{ backgroundColor: 'white', borderTopLeftRadius: 32, borderTopRightRadius: 32, maxHeight: '90%' }}>
+                            {/* Modal header */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
+                                <Text style={{ fontSize: 18, fontWeight: '900', color: '#0F172A' }}>
+                                    {t('support.form_title') || 'Request Counseling'}
+                                </Text>
+                                <TouchableOpacity onPress={() => setShowModal(false)} style={{ padding: 8, backgroundColor: '#F1F5F9', borderRadius: 20 }}>
+                                    <X size={18} color="#64748B" />
+                                </TouchableOpacity>
                             </View>
 
-                            <View className="space-y-2">
-                                <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">{t('support.how_help') || "How can we help?"}</Text>
-                                <TextInput 
-                                    className="bg-slate-50 border border-slate-100 px-6 py-5 rounded-[2rem] font-bold text-slate-900 h-32 text-top"
+                            <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
+
+                                {/* Support type */}
+                                <Text style={fieldLabel}>{t('support.topic') || 'Support Topic'}</Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 }}>
+                                    {SUPPORT_TYPES.map(type => (
+                                        <TouchableOpacity
+                                            key={type.value}
+                                            onPress={() => setFormData(f => ({ ...f, type: type.value }))}
+                                            style={{
+                                                paddingHorizontal: 14,
+                                                paddingVertical: 8,
+                                                borderRadius: 50,
+                                                borderWidth: 2,
+                                                borderColor: formData.type === type.value ? '#4F46E5' : '#E2E8F0',
+                                                backgroundColor: formData.type === type.value ? '#4F46E5' : 'white',
+                                                marginRight: 8,
+                                                marginBottom: 8,
+                                            }}
+                                        >
+                                            <Text style={{ color: formData.type === type.value ? 'white' : '#475569', fontWeight: '700', fontSize: 13 }}>
+                                                {type.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* Urgency */}
+                                <Text style={fieldLabel}>{t('support.urgency') || 'Urgency Level'}</Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 20 }}>
+                                    {URGENCY_LEVELS.map(level => (
+                                        <TouchableOpacity
+                                            key={level.value}
+                                            onPress={() => setFormData(f => ({ ...f, urgency: level.value }))}
+                                            style={{
+                                                paddingHorizontal: 14,
+                                                paddingVertical: 8,
+                                                borderRadius: 50,
+                                                borderWidth: 2,
+                                                borderColor: formData.urgency === level.value ? level.color : '#E2E8F0',
+                                                backgroundColor: formData.urgency === level.value ? level.bg : 'white',
+                                                marginRight: 8,
+                                                marginBottom: 8,
+                                            }}
+                                        >
+                                            <Text style={{ color: formData.urgency === level.value ? level.color : '#475569', fontWeight: '800', fontSize: 13 }}>
+                                                {level.label}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* Description */}
+                                <Text style={fieldLabel}>{t('support.how_help') || 'How can we help?'}</Text>
+                                <TextInput
                                     multiline
-                                    numberOfLines={4}
+                                    numberOfLines={5}
                                     placeholder={t('support.desc_placeholder') || "Feel free to share what's on your mind..."}
+                                    placeholderTextColor="#94A3B8"
                                     value={formData.description}
-                                    onChangeText={(text) => setFormData({...formData, description: text})}
+                                    onChangeText={text => setFormData(f => ({ ...f, description: text }))}
+                                    style={{
+                                        backgroundColor: '#F8FAFC',
+                                        borderWidth: 1,
+                                        borderColor: '#E2E8F0',
+                                        borderRadius: 20,
+                                        padding: 16,
+                                        fontSize: 14,
+                                        color: '#0F172A',
+                                        textAlignVertical: 'top',
+                                        minHeight: 120,
+                                        marginBottom: 20,
+                                    }}
                                 />
-                            </View>
 
-                            <View className="flex-row items-center justify-between p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
-                                <View className="flex-1 mr-4">
-                                    <Text className="text-sm font-black text-slate-900 uppercase tracking-tight">{t('support.anonymous') || 'Stay Anonymous'}</Text>
-                                    <Text className="text-xs text-slate-400 font-medium">{t('support.anonymous_desc') || 'Identify only by a secure ID'}</Text>
+                                {/* Anonymous toggle */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 20, padding: 16, marginBottom: 24 }}>
+                                    <View style={{ flex: 1, marginRight: 16 }}>
+                                        <Text style={{ color: '#0F172A', fontSize: 14, fontWeight: '800', marginBottom: 2 }}>
+                                            {t('support.anonymous') || 'Stay Anonymous'}
+                                        </Text>
+                                        <Text style={{ color: '#94A3B8', fontSize: 12 }}>
+                                            {t('support.anonymous_desc') || 'Your name will not be shared with counselors'}
+                                        </Text>
+                                    </View>
+                                    <Switch
+                                        value={formData.anonymous}
+                                        onValueChange={val => setFormData(f => ({ ...f, anonymous: val }))}
+                                        trackColor={{ false: '#CBD5E1', true: '#6366F1' }}
+                                        thumbColor="white"
+                                    />
                                 </View>
-                                <Switch 
-                                    value={formData.anonymous}
-                                    onValueChange={(value) => setFormData({...formData, anonymous: value})}
-                                    trackColor={{ false: '#CBD5E1', true: '#6366F1' }}
-                                    thumbColor={formData.anonymous ? '#FFFFFF' : '#F1F5F9'}
-                                />
-                            </View>
 
-                            <TouchableOpacity 
-                                disabled={isSubmitting}
-                                onPress={handleSubmit}
-                                className="bg-indigo-600 py-6 rounded-[2rem] items-center shadow-xl shadow-indigo-500/30"
-                            >
-                                {isSubmitting ? (
-                                    <ActivityIndicator color="white" />
-                                ) : (
-                                    <Text className="text-white font-black text-lg">{t('support.submit')}</Text>
-                                )}
-                            </TouchableOpacity>
-                        </ScrollView>
+                                {/* Submit */}
+                                <TouchableOpacity
+                                    onPress={handleSubmit}
+                                    disabled={isSubmitting}
+                                    activeOpacity={0.85}
+                                    style={{ backgroundColor: '#4F46E5', borderRadius: 20, paddingVertical: 18, alignItems: 'center' }}
+                                >
+                                    {isSubmitting
+                                        ? <ActivityIndicator color="white" />
+                                        : <Text style={{ color: 'white', fontSize: 16, fontWeight: '900' }}>
+                                            {t('support.submit') || 'Request Professional Help'}
+                                          </Text>
+                                    }
+                                </TouchableOpacity>
+                            </ScrollView>
+                        </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
-        </SafeAreaView>
+        </View>
+    );
+}
+
+const fieldLabel = {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 1,
+    marginBottom: 10,
+};
+
+function Row({ label, value }: { label: string; value: string }) {
+    return (
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' }}>
+            <Text style={{ color: '#94A3B8', fontSize: 12, fontWeight: '600' }}>{label}</Text>
+            <Text style={{ color: '#1E293B', fontSize: 12, fontWeight: '700' }}>{value}</Text>
+        </View>
     );
 }

@@ -2,11 +2,11 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Replace with your local machine's IP address when testing on a real device
-const API_BASE_URL = 'http://192.168.8.121:3001/api'; // Pointing to the integrated Web Backend
+export const API_BASE_URL = 'http://192.168.8.121:3001/api'; // Pointing to the integrated Web Backend
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000, // 10 seconds — prevents infinite loading when backend is unreachable
+  timeout: 5000, // 5 seconds
   headers: {
     'Content-Type': 'application/json',
   },
@@ -23,6 +23,7 @@ api.interceptors.request.use(async (config) => {
 export const authService = {
   login: (data: any) => api.post('/auth/login', data),
   register: (data: any) => api.post('/auth/register', data),
+  googleLogin: (idToken: string) => api.post('/auth/google', { idToken }),
   getProfile: () => api.get('/auth/profile'),
 };
 
@@ -39,7 +40,7 @@ export const incidentService = {
 
 export const alertService = {
   createAlert: (data: any) => api.post('/alerts', data),
-  getAlerts: () => api.get('/alerts'),
+  getAlerts: (params?: { lat?: number; lng?: number }) => api.get('/alerts', { params }),
   deactivateAlert: (id: string) => api.patch(`/alerts/${id}/deactivate`),
   deleteAlert: (id: string) => api.delete(`/alerts/${id}`),
 };
@@ -95,6 +96,7 @@ export const damageAssessmentService = {
 };
 
 export const missingPersonService = {
+  report: (data: any) => api.post('/missing-persons', data),
   reportMissing: (data: any) => api.post('/missing-persons', data),
   getMissing: () => api.get('/missing-persons'),
   updateStatus: (id: string, status: string) => api.patch(`/missing-persons/${id}/status`, { status }),
@@ -138,6 +140,12 @@ export const familyService = {
   getMyStatus: () => api.get('/family/my-status'),
   addMember: (data: any) => api.post('/family/members', data),
   updateMember: (id: string, data: any) => api.patch(`/family/members/${id}`, data),
+};
+
+export const safeZoneService = {
+  /** Fetch public safe places near a coordinate. dangerRadius=0 returns raw places; compute danger per-alert client-side. */
+  getNearby: (lat: number, lng: number, searchRadiusKm = 5, maxResults = 25) =>
+    api.get('/safe-zones', { params: { lat, lng, dangerRadius: 0, searchRadius: searchRadiusKm, maxResults } }),
 };
 
 export const waterService = {

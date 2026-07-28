@@ -20,7 +20,9 @@ function notifyListeners(online: boolean) {
 export async function checkConnectivity() {
   try {
     const state = await Network.getNetworkStateAsync();
-    const online = state.isConnected && state.isInternetReachable;
+    // isInternetReachable is null on Android when undetermined — treat null as online
+    // Only treat as offline when explicitly false
+    const online = state.isConnected && state.isInternetReachable !== false;
     return !!online;
   } catch {
     return false;

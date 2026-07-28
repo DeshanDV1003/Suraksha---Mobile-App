@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, Text, TouchableOpacity, Alert, Platform, StatusBar } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, Alert, Platform, StatusBar, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { incidentService, userService, volunteerService } from '../services/api';
@@ -16,29 +16,35 @@ export default function ProfileScreen() {
     const { t, i18n } = useTranslation();
     const insets = useSafeAreaInsets();
     const [user, setUser] = React.useState<any>(null);
+    const [profileLoading, setProfileLoading] = React.useState(true);
     const [stats, setStats] = React.useState({ reports: 0, tasks: 0 });
 
     React.useEffect(() => {
         const loadData = async () => {
-            try {
-                const stored = await AsyncStorage.getItem('user');
-                if (stored) setUser(JSON.parse(stored));
+            // 1. Show cached data immediately — no waiting for network
+            const stored = await AsyncStorage.getItem('user');
+            if (stored) setUser(JSON.parse(stored));
+            setProfileLoading(false);
 
+            // 2. Refresh from network silently in background
+            try {
                 const [reportsRes, userRes, tasksRes] = await Promise.all([
                     incidentService.getMyReports().catch(() => ({ data: [] })),
                     userService.getMe().catch(() => null),
                     volunteerService.getMyTasks().catch(() => ({ data: [] })),
                 ]);
 
-                if (userRes) {
+                if (userRes?.data) {
                     setUser(userRes.data);
                     await AsyncStorage.setItem('user', JSON.stringify(userRes.data));
                 }
 
-                const completedTasks = (tasksRes.data || []).filter((t: any) => t.status === 'COMPLETED' || t.status === 'RESOLVED').length;
-                setStats({ reports: reportsRes.data.length || 0, tasks: completedTasks });
+                const completedTasks = (tasksRes?.data || []).filter(
+                    (t: any) => t.status === 'COMPLETED' || t.status === 'RESOLVED'
+                ).length;
+                setStats({ reports: reportsRes?.data?.length || 0, tasks: completedTasks });
             } catch (err) {
-                console.log('Error loading profile data:', err);
+                // Network unavailable — cached data is already shown
             }
         };
         loadData();
@@ -54,23 +60,43 @@ export default function ProfileScreen() {
             if (window.confirm('Sign out of Suraksha?')) logoutAction();
             return;
         }
-        Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Sign Out', style: 'destructive', onPress: logoutAction },
+        Alert.alert(t('profile.sign_out_title'), t('profile.sign_out_message'), [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('profile.sign_out_btn'), style: 'destructive', onPress: logoutAction },
         ]);
     };
 
     const notice = (feature: string) =>
-        Alert.alert(feature, 'This feature will be available in the next update.');
+        Alert.alert(feature, t('profile.coming_soon'));
 
-    if (!user) return null;
+    if (profileLoading) return (
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF', alignItems: 'center', justifyContent: 'center' }}>
+            <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text style={{ color: '#64748B', fontSize: 14, fontWeight: '600', marginTop: 12 }}>{t('profile.loading')}</Text>
+        </View>
+    );
+
+    if (!user) return (
+        <View style={{ flex: 1, backgroundColor: '#F0F4FF', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+            <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+            <Text style={{ color: '#0F172A', fontSize: 16, fontWeight: '700', marginBottom: 8 }}>{t('profile.could_not_load')}</Text>
+            <Text style={{ color: '#64748B', fontSize: 14, textAlign: 'center', marginBottom: 24 }}>{t('profile.check_connection')}</Text>
+            <TouchableOpacity
+                onPress={async () => { await AsyncStorage.multiRemove(['token', 'user']); navigation.reset({ index: 0, routes: [{ name: 'Login' }] }); }}
+                style={{ backgroundColor: '#EF4444', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 32 }}
+            >
+                <Text style={{ color: 'white', fontWeight: '700', fontSize: 15 }}>{t('profile.sign_out_btn')}</Text>
+            </TouchableOpacity>
+        </View>
+    );
 
     const initials = (user.name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
     const langLabel = i18n.language === 'si' ? 'සිංහල' : i18n.language === 'ta' ? 'தமிழ்' : 'English';
 
     const settingsGroups = [
         {
-            title: 'Preferences',
+            title: t('profile.preferences'),
             items: [
                 { icon: Globe, label: t('profile.language') || 'Language', value: langLabel, onPress: () => navigation.navigate('Language'), color: '#2563EB' },
                 { icon: Bell, label: t('profile.notifications') || 'Notifications', onPress: () => notice('Notifications'), color: '#7C3AED' },
@@ -78,7 +104,7 @@ export default function ProfileScreen() {
             ],
         },
         {
-            title: 'Account',
+            title: t('profile.account'),
             items: [
                 { icon: Phone, label: t('profile.emergency_contacts') || 'Emergency Contacts', onPress: () => notice('Emergency Contacts'), color: '#EF4444' },
                 { icon: Shield, label: t('profile.privacy') || 'Privacy & Security', onPress: () => notice('Privacy'), color: '#64748B' },

@@ -2,12 +2,21 @@ import * as SQLite from 'expo-sqlite';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let db: SQLite.SQLiteDatabase;
+let dbReady: Promise<void> | null = null;
 
-export async function openDatabase() {
-  db = await SQLite.openDatabaseAsync('suraksha_offline.db');
-  await db.execAsync(`PRAGMA journal_mode = WAL;`);
-  await setupTables();
-  return db;
+export function openDatabase(): Promise<void> {
+  if (!dbReady) {
+    dbReady = (async () => {
+      db = await SQLite.openDatabaseAsync('suraksha_offline.db');
+      await db.execAsync(`PRAGMA journal_mode = WAL;`);
+      await setupTables();
+    })();
+  }
+  return dbReady;
+}
+
+async function ensureDb(): Promise<void> {
+  if (!db) await openDatabase();
 }
 
 async function setupTables() {
@@ -79,6 +88,7 @@ async function setupTables() {
 // ─── SYNC QUEUE OPERATIONS ────────────────────────────────────────────────
 
 export async function addToSyncQueue(type: string, payload: any) {
+  await ensureDb();
   const id = `${type}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   await db.runAsync(
     `INSERT INTO sync_queue (id, type, payload) VALUES (?, ?, ?)`,
@@ -88,6 +98,7 @@ export async function addToSyncQueue(type: string, payload: any) {
 }
 
 export async function getPendingItems() {
+  await ensureDb();
   return await db.getAllAsync<any>(
     `SELECT * FROM sync_queue 
      WHERE status = 'pending' AND attempts < max_attempts
@@ -96,6 +107,7 @@ export async function getPendingItems() {
 }
 
 export async function markSynced(id: string) {
+  await ensureDb();
   await db.runAsync(
     `UPDATE sync_queue SET status = 'synced', synced_at = datetime('now') WHERE id = ?`,
     [id]
@@ -103,6 +115,7 @@ export async function markSynced(id: string) {
 }
 
 export async function markFailed(id: string, errorMsg: string) {
+  await ensureDb();
   await db.runAsync(
     `UPDATE sync_queue 
      SET attempts = attempts + 1, error_msg = ?, 
@@ -113,6 +126,7 @@ export async function markFailed(id: string, errorMsg: string) {
 }
 
 export async function getPendingCount() {
+  await ensureDb();
   const result = await db.getFirstAsync<{count: number}>(
     `SELECT COUNT(*) as count FROM sync_queue WHERE status = 'pending'`
   );
@@ -122,6 +136,7 @@ export async function getPendingCount() {
 // ─── INCIDENT CACHE OPERATIONS ───────────────────────────────────────────
 
 export async function cacheIncidents(incidents: any[]) {
+  await ensureDb();
   for (const inc of incidents) {
     await db.runAsync(
       `INSERT OR REPLACE INTO incidents_cache 
@@ -136,6 +151,7 @@ export async function cacheIncidents(incidents: any[]) {
 }
 
 export async function getCachedIncidents() {
+  await ensureDb();
   return await db.getAllAsync<any>(
     `SELECT * FROM incidents_cache ORDER BY created_at DESC`
   );
@@ -144,6 +160,7 @@ export async function getCachedIncidents() {
 // ─── ALERTS CACHE OPERATIONS ─────────────────────────────────────────────
 
 export async function cacheAlerts(alerts: any[]) {
+  await ensureDb();
   for (const alert of alerts) {
     await db.runAsync(
       `INSERT OR REPLACE INTO alerts_cache (id, title, message, location, type, active, created_at)
@@ -155,6 +172,7 @@ export async function cacheAlerts(alerts: any[]) {
 }
 
 export async function getCachedAlerts() {
+  await ensureDb();
   return await db.getAllAsync<any>(
     `SELECT * FROM alerts_cache WHERE active = 1 ORDER BY created_at DESC`
   );
@@ -163,6 +181,7 @@ export async function getCachedAlerts() {
 // ─── RELIEF CAMPS CACHE ───────────────────────────────────────────────────
 
 export async function cacheReliefCamps(camps: any[]) {
+  await ensureDb();
   for (const camp of camps) {
     await db.runAsync(
       `INSERT OR REPLACE INTO relief_camps_cache 
@@ -176,6 +195,7 @@ export async function cacheReliefCamps(camps: any[]) {
 }
 
 export async function getCachedReliefCamps() {
+  await ensureDb();
   const rows = await db.getAllAsync<any>(`SELECT * FROM relief_camps_cache WHERE status = 'OPEN'`);
   return rows.map(r => ({ ...r, services: JSON.parse(r.services || '[]') }));
 }
@@ -183,10 +203,12 @@ export async function getCachedReliefCamps() {
 // ─── APP META ─────────────────────────────────────────────────────────────
 
 export async function setMeta(key: string, value: string) {
+  await ensureDb();
   await db.runAsync(`INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`, [key, value]);
 }
 
 export async function getMeta(key: string) {
+  await ensureDb();
   const row = await db.getFirstAsync<{value: string}>(`SELECT value FROM app_meta WHERE key = ?`, [key]);
   return row?.value || null;
 }

@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
 import {
     ScrollView, View, Text, Modal, TouchableOpacity,
-    FlatList, TextInput, ActivityIndicator,
+    TextInput, ActivityIndicator,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Header } from '../components/common/Header';
-import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 import { useToast } from '../context/ToastContext';
+import { clearCache } from '../services/cache';
+import { incidentService } from '../services/api';
+import { addToSyncQueue } from '../storage/localDB';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -27,7 +29,6 @@ const INCIDENT_TYPES = [
 export default function ReportScreen() {
     const { t } = useTranslation();
     const navigation = useNavigation<any>();
-    const { submit, status } = useOfflineSubmit('INCIDENT_REPORT', '/api/incidents');
     const toast = useToast();
 
     const [description, setDescription] = useState('');
@@ -36,55 +37,90 @@ export default function ReportScreen() {
     const [showTypePicker, setShowTypePicker] = useState(false);
     const [locationText, setLocationText] = useState('Detecting location...');
     const [locationCoords, setLocationCoords] = useState({ lat: 6.9271, lng: 79.8612 });
-    const loading = status === 'submitting';
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         (async () => {
             try {
                 const { status: s } = await Location.requestForegroundPermissionsAsync();
-                if (s !== 'granted') { setLocationText('Colombo, Sri Lanka'); return; }
-                const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-                setLocationCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-                const [place] = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-                if (place) {
-                    const parts = [place.street, place.district || place.subregion, place.region].filter(Boolean);
-                    setLocationText(parts.join(', ') || 'Current Location');
-                } else {
-                    setLocationText('Current Location');
+                if (s !== 'granted') { setLocationText('Location unavailable'); return; }
+
+                // Use last known position instantly (no waiting for GPS fix)
+                const last = await Location.getLastKnownPositionAsync();
+                if (last) {
+                    setLocationCoords({ lat: last.coords.latitude, lng: last.coords.longitude });
+                    const [place] = await Location.reverseGeocodeAsync({
+                        latitude: last.coords.latitude, longitude: last.coords.longitude,
+                    });
+                    if (place) {
+                        const parts = [place.street, place.district || place.subregion, place.region].filter(Boolean);
+                        setLocationText(parts.join(', ') || 'Current Location');
+                    }
                 }
-            } catch { setLocationText('Colombo, Sri Lanka'); }
+
+                // Then get fresh position silently in background
+                Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).then(async pos => {
+                    setLocationCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                    const [place] = await Location.reverseGeocodeAsync({
+                        latitude: pos.coords.latitude, longitude: pos.coords.longitude,
+                    });
+                    if (place) {
+                        const parts = [place.street, place.district || place.subregion, place.region].filter(Boolean);
+                        setLocationText(parts.join(', ') || 'Current Location');
+                    }
+                }).catch(() => {});
+            } catch { setLocationText('Current Location'); }
         })();
     }, []);
 
     const handleSubmit = async () => {
         if (!incidentType || !description.trim()) {
-            toast.error('Missing Info', 'Please select an incident type and describe what happened.');
+            toast.error(t('common.error'), t('report.missing_info'));
             return;
         }
+
+        const payload = {
+            title: incidentType.label,
+            description,
+            location: locationText,
+            latitude: locationCoords.lat,
+            longitude: locationCoords.lng,
+            category: incidentType.id,
+        };
+
+        setLoading(true);
         try {
-            const result = await submit({
-                title: incidentType.label,
-                description,
-                location: locationText,
-                latitude: locationCoords.lat,
-                longitude: locationCoords.lng,
-                category: incidentType.id,
-                peopleAffected: parseInt(peopleAffected) || 0,
-            });
-            if (result.queued) {
-                toast.warning('Saved Offline', 'Your report will be sent when you reconnect.');
-            } else {
-                toast.success('Report Submitted', 'Authorities have been notified.');
-            }
+            // Use the axios service — it handles auth token automatically via interceptor
+            await incidentService.createIncident(payload);
+            toast.success(t('common.success'), t('report.submitted'));
+            await clearCache('home_reports');
             navigation.navigate('Home');
-        } catch {
-            toast.error('Failed', 'Could not submit report. Please try again.');
+        } catch (err: any) {
+            const status = err?.response?.status;
+            if (!status) {
+                // No response = network is down — queue for later
+                try {
+                    await addToSyncQueue('INCIDENT_REPORT', payload);
+                    toast.warning(t('common.offline_queued'), t('report.saved_offline'));
+                    navigation.navigate('Home');
+                } catch {
+                    toast.error(t('common.error'), t('report.submit_failed'));
+                }
+            } else {
+                // Server returned an error — show it
+                console.log('[ReportScreen] Server error:', status, JSON.stringify(err?.response?.data));
+                const raw = err?.response?.data?.message || err?.response?.data?.error || t('report.submit_failed');
+                const msg = typeof raw === 'string' ? raw : JSON.stringify(raw);
+                toast.error(t('common.error'), msg);
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
         <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
-            <Header title={t('report.title') || 'Report Incident'} subtitle="Report any emergency or disaster" showBack />
+            <Header title={t('report.title')} subtitle={t('report.subtitle')} showBack />
 
             <ScrollView
                 style={{ flex: 1 }}
@@ -94,7 +130,7 @@ export default function ReportScreen() {
             >
                 {/* Incident Type */}
                 <Text style={{ color: '#64748B', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginLeft: 4 }}>
-                    Incident Type *
+                    {t('report.incident_type_label')}
                 </Text>
                 <TouchableOpacity
                     onPress={() => setShowTypePicker(true)}
@@ -115,7 +151,7 @@ export default function ReportScreen() {
                         elevation: 2,
                     }}
                 >
-                    {incidentType ? (
+                    {incidentType !== null ? (
                         <View style={{ width: 36, height: 36, backgroundColor: incidentType.color + '15', borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
                             <AlertTriangle size={18} color={incidentType.color} strokeWidth={2.5} />
                         </View>
@@ -125,14 +161,14 @@ export default function ReportScreen() {
                         </View>
                     )}
                     <Text style={{ flex: 1, color: incidentType ? '#0F172A' : '#94A3B8', fontSize: 15, fontWeight: incidentType ? '700' : '500' }}>
-                        {incidentType?.label || 'Select incident type...'}
+                        {incidentType?.label || t('report.select_incident_type')}
                     </Text>
                     <ChevronDown size={18} color="#94A3B8" strokeWidth={2} />
                 </TouchableOpacity>
 
                 {/* Location */}
                 <Text style={{ color: '#64748B', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginLeft: 4 }}>
-                    Location
+                    {t('report.location_label')}
                 </Text>
                 <View style={{
                     backgroundColor: '#EFF6FF',
@@ -148,7 +184,7 @@ export default function ReportScreen() {
                         <MapPin size={18} color="#2563EB" strokeWidth={2} />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: '#1E40AF', fontSize: 12, fontWeight: '700', marginBottom: 2 }}>Using GPS Location</Text>
+                        <Text style={{ color: '#1E40AF', fontSize: 12, fontWeight: '700', marginBottom: 2 }}>{t('report.using_gps')}</Text>
                         <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '500' }} numberOfLines={1}>{locationText}</Text>
                     </View>
                     <Navigation size={16} color="#2563EB" strokeWidth={2} />
@@ -156,7 +192,7 @@ export default function ReportScreen() {
 
                 {/* Description */}
                 <Text style={{ color: '#64748B', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginLeft: 4 }}>
-                    Description *
+                    {t('report.description_label')}
                 </Text>
                 <View style={{
                     backgroundColor: 'white',
@@ -179,7 +215,7 @@ export default function ReportScreen() {
 
                 {/* People affected */}
                 <Text style={{ color: '#64748B', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginLeft: 4 }}>
-                    Estimated People Affected
+                    {t('report.people_affected_label')}
                 </Text>
                 <View style={{
                     backgroundColor: 'white',
@@ -193,7 +229,7 @@ export default function ReportScreen() {
                 }}>
                     <Users size={18} color="#94A3B8" strokeWidth={2} />
                     <TextInput
-                        placeholder="Enter approximate number"
+                        placeholder={t('report.people_affected_placeholder')}
                         placeholderTextColor="#CBD5E1"
                         value={peopleAffected}
                         onChangeText={setPeopleAffected}
@@ -229,7 +265,7 @@ export default function ReportScreen() {
                 </TouchableOpacity>
 
                 <Text style={{ color: '#94A3B8', fontSize: 12, textAlign: 'center', lineHeight: 18 }}>
-                    {t('report.ml_disclaimer') || 'Reports are processed with ML priority classification and routed to the nearest response team.'}
+                    {t('report.ml_disclaimer')}
                 </Text>
             </ScrollView>
 

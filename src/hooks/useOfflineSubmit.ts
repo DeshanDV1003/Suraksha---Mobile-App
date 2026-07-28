@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { getIsOnline } from '../services/networkMonitor';
 import { addToSyncQueue } from '../storage/localDB';
-import { getToken } from '../services/storage';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.8.121:3001';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../services/api';
 
 export function useOfflineSubmit(type: string, endpoint: string) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'queued' | 'error'>('idle');
@@ -13,35 +11,56 @@ export function useOfflineSubmit(type: string, endpoint: string) {
     setStatus('submitting');
     setError(null);
 
-    const online = getIsOnline();
+    const token = await AsyncStorage.getItem('token');
 
-    if (online) {
-      // Try direct API call
-      try {
-        const token = await getToken();
-        const response = await fetch(`${API_URL}${endpoint}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify(data)
-        });
+    // Always attempt the network call — don't rely on a cached online flag
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        if (response.ok) {
-          setStatus('success');
-          return { success: true, data: await response.json() };
-        } else {
-          throw new Error(`Server error: ${response.status}`);
-        }
-      } catch (err: any) {
-        // Network call failed even though we thought we were online
-        // Fall through to offline queue
-        console.warn('[Submit] Online submit failed, queuing offline:', err.message);
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(data),
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        setStatus('success');
+        return { success: true, data: await response.json() };
       }
+
+      // 4xx = server rejected the request (auth error, validation) — surface it, don't queue
+      if (response.status >= 400 && response.status < 500) {
+        const body = await response.json().catch(() => ({}));
+        const raw = body?.message || body?.error || `Request failed (${response.status})`;
+        const msg = typeof raw === 'string' ? raw : JSON.stringify(raw);
+        setStatus('error');
+        setError(msg);
+        throw new Error(msg);
+      }
+
+      // 5xx = server-side problem — fall through to queue for retry
+      throw new Error(`server_error_${response.status}`);
+
+    } catch (err: any) {
+      const isNetworkOrTimeout =
+        err.name === 'AbortError' ||
+        err.message === 'Network request failed' ||
+        err.message?.startsWith('server_error_');
+
+      if (!isNetworkOrTimeout) {
+        // Re-throw 4xx / validation errors — caller shows them to the user
+        throw err;
+      }
+      // Network unreachable or server down — queue for later
     }
 
-    // Queue for later sync
     const queueId = await addToSyncQueue(type, data);
     setStatus('queued');
     return { success: true, queued: true, queueId };
