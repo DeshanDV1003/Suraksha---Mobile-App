@@ -43,14 +43,14 @@ export default function TasksScreen() {
         }
     };
 
-    const pending    = tasks.filter(t => t.status === 'PENDING').length;
-    const inProgress = tasks.filter(t => t.status === 'IN_PROGRESS').length;
-    const completed  = tasks.filter(t => t.status === 'RESOLVED' || t.status === 'COMPLETED').length;
+    const pending    = tasks.filter(t => t.status === 'PENDING' || t.status === 'ASSIGNED').length;
+    const inProgress = tasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'EN_ROUTE' || t.status === 'ON_SITE').length;
+    const completed  = tasks.filter(t => t.status === 'RESOLVED').length;
 
     const filtered = activeTab === 'ALL' ? tasks
-        : activeTab === 'PENDING'     ? tasks.filter(t => t.status === 'PENDING')
-        : activeTab === 'IN_PROGRESS' ? tasks.filter(t => t.status === 'IN_PROGRESS')
-        : tasks.filter(t => t.status === 'RESOLVED' || t.status === 'COMPLETED');
+        : activeTab === 'PENDING'     ? tasks.filter(t => t.status === 'PENDING' || t.status === 'ASSIGNED')
+        : activeTab === 'IN_PROGRESS' ? tasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'EN_ROUTE' || t.status === 'ON_SITE')
+        : tasks.filter(t => t.status === 'RESOLVED');
 
     const tabs: { key: TabFilter; label: string; count: number; color: string }[] = [
         { key: 'ALL',         label: t('tasks.tab_all'),     count: tasks.length, color: '#0F172A' },
@@ -132,7 +132,7 @@ export default function TasksScreen() {
                             location={task.incident?.location || 'Location not set'}
                             description={task.description || ''}
                             time={dayjs(task.createdAt).fromNow()}
-                            status={task.status?.toLowerCase().replace('_', '-') || 'pending'}
+                            status={task.status?.toLowerCase().replace(/_/g, '-') || 'pending'}
                             labels={{
                                 decline: t('common.decline') || 'Decline',
                                 accept: t('common.accept') || 'Accept',
@@ -142,6 +142,7 @@ export default function TasksScreen() {
                             }}
                             onAccept={() => handleUpdateStatus(task.id, 'IN_PROGRESS')}
                             onDecline={() => handleUpdateStatus(task.id, 'PENDING')}
+                            onComplete={() => handleUpdateStatus(task.id, 'RESOLVED')}
                         />
                     ))
                 )}

@@ -15,5 +15,6 @@ export function useUserRole(): UserRole {
 }
 
 export function useIsVolunteer(): boolean {
-    return useContext(UserContext).role === 'VOLUNTEER';
+    const role = useContext(UserContext).role;
+    return role === 'VOLUNTEER' || role === 'DMC_OFFICER' || role === 'ADMIN';
 }

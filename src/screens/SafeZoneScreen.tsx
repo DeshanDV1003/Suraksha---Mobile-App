@@ -140,11 +140,11 @@ export default function SafeZoneScreen() {
       const searchRadius = Math.min(dangerKm * 1.5, 5); // cap at 5 km
       const [zonesRes, authRes] = await Promise.all([
         fetch(
-          `${API_BASE_URL}/api/safe-zones?lat=${userLat}&lng=${userLng}&dangerRadius=${dangerKm}&searchRadius=${searchRadius}&maxResults=10`,
+          `${API_BASE_URL}/safe-zones?lat=${userLat}&lng=${userLng}&dangerRadius=${dangerKm}&searchRadius=${searchRadius}&maxResults=10`,
           { headers }
         ),
         district
-          ? fetch(`${API_BASE_URL}/api/safe-zones/authorities/${encodeURIComponent(district)}`, { headers })
+          ? fetch(`${API_BASE_URL}/safe-zones/authorities/${encodeURIComponent(district)}`, { headers })
           : Promise.resolve(null),
       ]);
 
@@ -235,6 +235,12 @@ export default function SafeZoneScreen() {
       ) : (
         <>
           {/* MAP TAB */}
+          {tab === 'map' && (userLat === null || userLng === null) && (
+            <View style={styles.center}>
+              <ActivityIndicator size="large" color="#2563EB" />
+              <Text style={styles.loadingText}>Waiting for your location…</Text>
+            </View>
+          )}
           {tab === 'map' && userLat !== null && userLng !== null && (
             <View style={{ flex: 1 }}>
               <MapView
@@ -264,7 +270,7 @@ export default function SafeZoneScreen() {
                     key={p.id}
                     coordinate={{ latitude: p.latitude, longitude: p.longitude }}
                     title={p.name}
-                    description={`${typeLabel(p.type)} · ${p.distanceKm} km`}
+                    description={`${typeLabel(p.type)} · ${Number(p.distanceKm).toFixed(1)} km`}
                     pinColor={p.isInDangerZone ? '#F59E0B' : '#16A34A'}
                     onPress={() => setSelectedPlace(p)}
                   />
@@ -330,7 +336,7 @@ export default function SafeZoneScreen() {
                             </Text>
                           </View>
                           <View style={styles.tag}>
-                            <Text style={styles.tagText}>{p.distanceKm} km away</Text>
+                            <Text style={styles.tagText}>{Number(p.distanceKm).toFixed(1)} km away</Text>
                           </View>
                           {p.capacity ? (
                             <View style={styles.tag}>

@@ -6,7 +6,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronLeft, Droplets, TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react-native';
+import {
+    ChevronLeft, Droplets, TrendingUp, TrendingDown,
+    Minus, AlertTriangle, CloudRain, CheckCircle2, Waves,
+} from 'lucide-react-native';
 import { waterService } from '../services/api';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -41,75 +44,207 @@ interface RainfallReading {
     recordedAt: string;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<RiverStatus, { label: string; color: string; bg: string; gradient: [string, string] }> = {
-    NORMAL:      { label: 'Normal',      color: '#059669', bg: '#ECFDF5', gradient: ['#059669', '#10B981'] },
-    ALERT:       { label: 'Alert',       color: '#D97706', bg: '#FFFBEB', gradient: ['#B45309', '#D97706'] },
-    MINOR_FLOOD: { label: 'Minor Flood', color: '#EA580C', bg: '#FFF7ED', gradient: ['#C2410C', '#EA580C'] },
-    MAJOR_FLOOD: { label: 'Major Flood', color: '#DC2626', bg: '#FEF2F2', gradient: ['#991B1B', '#DC2626'] },
+// ── Config ────────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<RiverStatus, {
+    label: string; emoji: string; short: string;
+    color: string; light: string; bg: string;
+    gradient: [string, string];
+    headerGrad: [string, string, string];
+}> = {
+    NORMAL:      {
+        label: 'Normal',      emoji: '✅', short: 'Normal',
+        color: '#059669', light: '#34D399', bg: '#ECFDF5',
+        gradient: ['#059669', '#10B981'],
+        headerGrad: ['#0F172A', '#1E3A8A', '#2563EB'],
+    },
+    ALERT:       {
+        label: 'Alert Level', emoji: '⚠️', short: 'Alert',
+        color: '#D97706', light: '#FCD34D', bg: '#FFFBEB',
+        gradient: ['#B45309', '#D97706'],
+        headerGrad: ['#451A03', '#78350F', '#D97706'],
+    },
+    MINOR_FLOOD: {
+        label: 'Minor Flood', emoji: '🌊', short: 'Minor Flood',
+        color: '#EA580C', light: '#FB923C', bg: '#FFF7ED',
+        gradient: ['#C2410C', '#EA580C'],
+        headerGrad: ['#7C2D12', '#9A3412', '#EA580C'],
+    },
+    MAJOR_FLOOD: {
+        label: 'Major Flood', emoji: '🚨', short: 'Major Flood',
+        color: '#DC2626', light: '#F87171', bg: '#FEF2F2',
+        gradient: ['#7F1D1D', '#991B1B', '#DC2626'],
+        headerGrad: ['#450A0A', '#7F1D1D', '#DC2626'],
+    },
 };
 
-function LevelBar({ current, alert, minorFlood, majorFlood }: {
-    current: number; alert: number; minorFlood: number; majorFlood: number;
+// ── WaterFill gauge ────────────────────────────────────────────────────
+function WaterFill({ current, alert, minorFlood, majorFlood, color }: {
+    current: number; alert: number; minorFlood: number; majorFlood: number; color: string;
 }) {
-    const max = majorFlood * 1.2;
-    const pct = (v: number) => Math.min((v / max) * 100, 100);
-    const currentPct = pct(current);
-    const alertPct = pct(alert);
-    const minorPct = pct(minorFlood);
-    const majorPct = pct(majorFlood);
+    const max = majorFlood * 1.25;
+    const fillPct = Math.min((current / max) * 100, 100);
+    const alertPct = Math.min((alert / max) * 100, 100);
+    const minorPct = Math.min((minorFlood / max) * 100, 100);
+    const majorPct = Math.min((majorFlood / max) * 100, 100);
 
-    const barColor = current >= majorFlood ? '#DC2626'
-        : current >= minorFlood ? '#EA580C'
-        : current >= alert ? '#D97706'
-        : '#059669';
+    // How far to next threshold
+    let nextLabel = '';
+    let nextGap = 0;
+    if (current < alert) {
+        nextLabel = 'Alert';
+        nextGap = alert - current;
+    } else if (current < minorFlood) {
+        nextLabel = 'Minor Flood';
+        nextGap = minorFlood - current;
+    } else if (current < majorFlood) {
+        nextLabel = 'Major Flood';
+        nextGap = majorFlood - current;
+    }
 
     return (
-        <View style={{ marginTop: 10, marginBottom: 4 }}>
-            <View style={{ height: 10, backgroundColor: '#E2E8F0', borderRadius: 6, overflow: 'visible', position: 'relative' }}>
-                {/* Filled bar */}
-                <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${currentPct}%`, backgroundColor: barColor, borderRadius: 6 }} />
-                {/* Threshold markers */}
-                {[
-                    { pct: alertPct, color: '#D97706' },
-                    { pct: minorPct, color: '#EA580C' },
-                    { pct: majorPct, color: '#DC2626' },
-                ].map((m, i) => (
-                    <View key={i} style={{ position: 'absolute', left: `${m.pct}%` as any, top: -3, bottom: -3, width: 2, backgroundColor: m.color, borderRadius: 1 }} />
+        <View style={{ marginTop: 14 }}>
+            {/* Bar */}
+            <View style={{ height: 18, backgroundColor: '#E2E8F0', borderRadius: 9, position: 'relative', overflow: 'hidden' }}>
+                {/* Color zones (background) */}
+                <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, flexDirection: 'row' }}>
+                    <View style={{ width: `${alertPct}%`, backgroundColor: '#D1FAE5' }} />
+                    <View style={{ width: `${minorPct - alertPct}%`, backgroundColor: '#FEF3C7' }} />
+                    <View style={{ width: `${majorPct - minorPct}%`, backgroundColor: '#FEE2E2' }} />
+                    <View style={{ flex: 1, backgroundColor: '#FCA5A5' }} />
+                </View>
+                {/* Water fill */}
+                <LinearGradient
+                    colors={[color + 'CC', color]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${fillPct}%` as any, borderRadius: 9 }}
+                />
+                {/* Threshold ticks */}
+                {[alertPct, minorPct, majorPct].map((p, i) => (
+                    <View key={i} style={{ position: 'absolute', left: `${p}%` as any, top: 0, bottom: 0, width: 2, backgroundColor: 'rgba(255,255,255,0.7)' }} />
                 ))}
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
-                <Text style={{ color: '#94A3B8', fontSize: 10 }}>0 m</Text>
-                <Text style={{ color: '#D97706', fontSize: 10 }}>Alert {alert}m</Text>
-                <Text style={{ color: '#EA580C', fontSize: 10 }}>Minor {minorFlood}m</Text>
-                <Text style={{ color: '#DC2626', fontSize: 10 }}>Major {majorFlood}m</Text>
+
+            {/* Labels row */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                <Text style={{ color: '#059669', fontSize: 10, fontWeight: '700' }}>Safe ≤{alert}m</Text>
+                <Text style={{ color: '#D97706', fontSize: 10, fontWeight: '700' }}>Alert {alert}m</Text>
+                <Text style={{ color: '#EA580C', fontSize: 10, fontWeight: '700' }}>Minor {minorFlood}m</Text>
+                <Text style={{ color: '#DC2626', fontSize: 10, fontWeight: '700' }}>Major {majorFlood}m</Text>
+            </View>
+
+            {/* Gap to next level */}
+            {nextLabel !== '' && (
+                <View style={{ backgroundColor: '#F8FAFC', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+                    <AlertTriangle size={11} color="#94A3B8" strokeWidth={2} />
+                    <Text style={{ color: '#64748B', fontSize: 11, marginLeft: 5 }}>
+                        <Text style={{ fontWeight: '700', color: '#475569' }}>{nextGap.toFixed(2)} m</Text>
+                        {' '}below {nextLabel} threshold
+                    </Text>
+                </View>
+            )}
+        </View>
+    );
+}
+
+// ── River card ─────────────────────────────────────────────────────────
+function RiverCard({ river }: { river: RiverLevel }) {
+    const cfg = STATUS_CONFIG[river.status];
+
+    const trendEl = () => {
+        if (river.trend === 'RISING') return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEE2E2', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <TrendingUp size={12} color="#DC2626" strokeWidth={2.5} />
+                <Text style={{ color: '#DC2626', fontSize: 11, fontWeight: '800', marginLeft: 3 }}>
+                    +{river.changeFromLastHour.toFixed(2)} m/hr
+                </Text>
+            </View>
+        );
+        if (river.trend === 'FALLING') return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#DCFCE7', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <TrendingDown size={12} color="#059669" strokeWidth={2.5} />
+                <Text style={{ color: '#059669', fontSize: 11, fontWeight: '800', marginLeft: 3 }}>
+                    {river.changeFromLastHour.toFixed(2)} m/hr
+                </Text>
+            </View>
+        );
+        return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Minus size={12} color="#64748B" strokeWidth={2.5} />
+                <Text style={{ color: '#64748B', fontSize: 11, fontWeight: '700', marginLeft: 3 }}>Stable</Text>
+            </View>
+        );
+    };
+
+    return (
+        <View style={{
+            backgroundColor: 'white',
+            borderRadius: 22,
+            marginBottom: 14,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 3 },
+            shadowOpacity: 0.08,
+            shadowRadius: 10,
+            elevation: 4,
+            overflow: 'hidden',
+        }}>
+            {/* Colored top bar */}
+            <View style={{ height: 5, backgroundColor: cfg.color }} />
+
+            <View style={{ padding: 16 }}>
+                {/* Row 1: Name + Status pill */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
+                        <Text style={{ color: '#0F172A', fontSize: 16, fontWeight: '900', letterSpacing: -0.3 }} numberOfLines={1}>
+                            {river.riverName}
+                        </Text>
+                        <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 2 }} numberOfLines={1}>
+                            {river.stationName} · {river.district}
+                        </Text>
+                    </View>
+                    <View style={{ backgroundColor: cfg.bg, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: cfg.color + '50', flexShrink: 0 }}>
+                        <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '900' }}>{cfg.emoji} {cfg.label}</Text>
+                    </View>
+                </View>
+
+                {/* Row 2: Big reading + trend */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                        <Text style={{ color: cfg.color, fontSize: 42, fontWeight: '900', letterSpacing: -2, lineHeight: 46 }}>
+                            {river.waterLevelMetres.toFixed(2)}
+                        </Text>
+                        <Text style={{ color: '#94A3B8', fontSize: 16, fontWeight: '700', marginLeft: 4 }}>m</Text>
+                    </View>
+                    {trendEl()}
+                </View>
+
+                {/* Water fill gauge */}
+                <WaterFill
+                    current={river.waterLevelMetres}
+                    alert={river.alertLevel}
+                    minorFlood={river.minorFloodLevel}
+                    majorFlood={river.majorFloodLevel}
+                    color={cfg.color}
+                />
+
+                {/* Footer */}
+                <Text style={{ color: '#CBD5E1', fontSize: 11, marginTop: 10 }}>
+                    Last reading {dayjs(river.recordedAt).fromNow()}
+                </Text>
             </View>
         </View>
     );
 }
 
-function TrendIcon({ trend, change }: { trend: Trend; change: number }) {
-    if (trend === 'RISING') return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <TrendingUp size={13} color="#DC2626" strokeWidth={2.5} />
-            <Text style={{ color: '#DC2626', fontSize: 11, fontWeight: '700' }}>+{change.toFixed(2)} m/hr</Text>
-        </View>
-    );
-    if (trend === 'FALLING') return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <TrendingDown size={13} color="#059669" strokeWidth={2.5} />
-            <Text style={{ color: '#059669', fontSize: 11, fontWeight: '700' }}>{change.toFixed(2)} m/hr</Text>
-        </View>
-    );
-    return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Minus size={13} color="#64748B" strokeWidth={2.5} />
-            <Text style={{ color: '#64748B', fontSize: 11 }}>Stable</Text>
-        </View>
-    );
+// ── Rainfall intensity label ───────────────────────────────────────────
+function rainLabel(mmhr: number): { text: string; color: string; bg: string } {
+    if (mmhr > 50) return { text: 'Extreme', color: '#DC2626', bg: '#FEE2E2' };
+    if (mmhr > 25) return { text: 'Heavy',   color: '#EA580C', bg: '#FFF7ED' };
+    if (mmhr > 10) return { text: 'Moderate', color: '#D97706', bg: '#FFFBEB' };
+    if (mmhr > 2)  return { text: 'Light',    color: '#2563EB', bg: '#EFF6FF' };
+    return                { text: 'Trace',    color: '#94A3B8', bg: '#F8FAFC' };
 }
 
-// ── Screen ───────────────────────────────────────────────────────────
+// ── Screen ─────────────────────────────────────────────────────────────
 export default function WaterLevelScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
@@ -118,6 +253,7 @@ export default function WaterLevelScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [tab, setTab] = useState<'rivers' | 'rain'>('rivers');
 
     const load = useCallback(async () => {
         try {
@@ -126,7 +262,6 @@ export default function WaterLevelScreen() {
                 waterService.getRainfallData(),
             ]);
 
-            // Deduplicate — latest reading per gauge
             const latestPerGauge = new Map<string, RiverLevel>();
             for (const r of (riverRes.data as RiverLevel[])) {
                 const existing = latestPerGauge.get(r.gaugeId);
@@ -134,12 +269,11 @@ export default function WaterLevelScreen() {
                     latestPerGauge.set(r.gaugeId, r);
                 }
             }
-            const sorted = [...latestPerGauge.values()].sort((a, b) => {
-                const order: RiverStatus[] = ['MAJOR_FLOOD', 'MINOR_FLOOD', 'ALERT', 'NORMAL'];
-                return order.indexOf(a.status) - order.indexOf(b.status);
-            });
+            const order: RiverStatus[] = ['MAJOR_FLOOD', 'MINOR_FLOOD', 'ALERT', 'NORMAL'];
+            const sorted = [...latestPerGauge.values()].sort((a, b) =>
+                order.indexOf(a.status) - order.indexOf(b.status)
+            );
 
-            // Latest reading per rainfall station
             const latestRain = new Map<string, RainfallReading>();
             for (const r of (rainRes.data as RainfallReading[])) {
                 const existing = latestRain.get(r.stationName);
@@ -151,8 +285,8 @@ export default function WaterLevelScreen() {
             setRivers(sorted);
             setRainfall([...latestRain.values()].sort((a, b) => b.rainfallMmPerHour - a.rainfallMmPerHour));
             setLastUpdated(new Date());
-        } catch (err) {
-            // Non-fatal — show stale data if available
+        } catch {
+            // show stale data
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -161,31 +295,19 @@ export default function WaterLevelScreen() {
 
     useEffect(() => {
         load();
-        const interval = setInterval(load, 5 * 60 * 1000); // refresh every 5 min
+        const interval = setInterval(load, 5 * 60 * 1000);
         return () => clearInterval(interval);
     }, [load]);
 
-    const onRefresh = () => {
-        setRefreshing(true);
-        load();
-    };
+    const onRefresh = () => { setRefreshing(true); load(); };
 
     const activeAlerts = rivers.filter(r => r.status !== 'NORMAL');
-    const highestStatus: RiverStatus = activeAlerts.find(r => r.status === 'MAJOR_FLOOD')
-        ? 'MAJOR_FLOOD'
-        : activeAlerts.find(r => r.status === 'MINOR_FLOOD')
-        ? 'MINOR_FLOOD'
-        : activeAlerts.find(r => r.status === 'ALERT')
-        ? 'ALERT'
-        : 'NORMAL';
+    const highestStatus: RiverStatus =
+        activeAlerts.find(r => r.status === 'MAJOR_FLOOD') ? 'MAJOR_FLOOD' :
+        activeAlerts.find(r => r.status === 'MINOR_FLOOD') ? 'MINOR_FLOOD' :
+        activeAlerts.find(r => r.status === 'ALERT') ? 'ALERT' : 'NORMAL';
 
-    const headerGradient: [string, string, string] = highestStatus === 'MAJOR_FLOOD'
-        ? ['#7F1D1D', '#991B1B', '#DC2626']
-        : highestStatus === 'MINOR_FLOOD'
-        ? ['#7C2D12', '#9A3412', '#EA580C']
-        : highestStatus === 'ALERT'
-        ? ['#451A03', '#78350F', '#D97706']
-        : ['#0F172A', '#1E3A8A', '#2563EB'];
+    const hCfg = STATUS_CONFIG[highestStatus];
 
     if (loading) {
         return (
@@ -197,150 +319,185 @@ export default function WaterLevelScreen() {
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#F0F4FF' }}>
+        <View style={{ flex: 1, backgroundColor: '#F1F5F9' }}>
             <StatusBar barStyle="light-content" />
 
-            {/* Header */}
+            {/* ── Header ── */}
             <LinearGradient
-                colors={headerGradient}
+                colors={hCfg.headerGrad}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                style={{ paddingTop: insets.top + 8, paddingBottom: 20, paddingHorizontal: 20 }}
+                style={{ paddingTop: insets.top + 8, paddingBottom: 24, paddingHorizontal: 20 }}
             >
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                {/* Nav row */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
                     <TouchableOpacity
                         onPress={() => navigation.goBack()}
-                        style={{ width: 36, height: 36, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}
+                        style={{ width: 38, height: 38, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}
                     >
-                        <ChevronLeft size={20} color="white" strokeWidth={2.5} />
+                        <ChevronLeft size={22} color="white" strokeWidth={2.5} />
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
-                        <Text style={{ color: 'white', fontSize: 18, fontWeight: '800' }}>Water Levels</Text>
+                        <Text style={{ color: 'white', fontSize: 20, fontWeight: '900', letterSpacing: -0.4 }}>Water Levels</Text>
                         {lastUpdated && (
-                            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 1 }}>
+                            <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 1 }}>
                                 Updated {dayjs(lastUpdated).fromNow()}
                             </Text>
                         )}
                     </View>
-                    <Droplets size={24} color="rgba(255,255,255,0.8)" strokeWidth={2} />
+                    <Waves size={26} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
                 </View>
 
-                {/* Summary row */}
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                    {[
-                        { label: 'Gauges', value: rivers.length, color: 'rgba(255,255,255,0.9)' },
-                        { label: 'Alerts', value: activeAlerts.length, color: activeAlerts.length > 0 ? '#FCD34D' : 'rgba(255,255,255,0.9)' },
-                        { label: 'Stations', value: rainfall.length, color: 'rgba(255,255,255,0.9)' },
-                    ].map(item => (
-                        <View key={item.label} style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 14, padding: 12, alignItems: 'center' }}>
-                            <Text style={{ color: item.color, fontSize: 22, fontWeight: '900' }}>{item.value}</Text>
-                            <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 2 }}>{item.label}</Text>
-                        </View>
-                    ))}
+                {/* Situation card */}
+                <View style={{ backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+                        Current Situation
+                    </Text>
+                    <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', marginBottom: 12 }}>
+                        {hCfg.emoji}{'  '}{activeAlerts.length === 0 ? 'All rivers normal' : `${activeAlerts.length} river${activeAlerts.length > 1 ? 's' : ''} above normal`}
+                    </Text>
+
+                    {/* 3-stat strip */}
+                    <View style={{ flexDirection: 'row' }}>
+                        {[
+                            { num: rivers.length, label: 'Gauges', icon: <Droplets size={14} color="rgba(255,255,255,0.7)" /> },
+                            { num: activeAlerts.length, label: 'Alerts', icon: <AlertTriangle size={14} color={activeAlerts.length > 0 ? '#FCD34D' : 'rgba(255,255,255,0.7)'} /> },
+                            { num: rainfall.length, label: 'Rain Stations', icon: <CloudRain size={14} color="rgba(255,255,255,0.7)" /> },
+                        ].map((s, i) => (
+                            <View key={i} style={{ flex: 1, alignItems: 'center' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                    {s.icon}
+                                    <Text style={{ color: s.label === 'Alerts' && s.num > 0 ? '#FCD34D' : 'white', fontSize: 22, fontWeight: '900', marginLeft: 4 }}>
+                                        {s.num}
+                                    </Text>
+                                </View>
+                                <Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{s.label}</Text>
+                            </View>
+                        ))}
+                    </View>
                 </View>
             </LinearGradient>
 
+            {/* ── Tab switcher ── */}
+            <View style={{ flexDirection: 'row', marginHorizontal: 16, marginTop: 16, marginBottom: 12, backgroundColor: 'white', borderRadius: 16, padding: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
+                {([
+                    { key: 'rivers', label: 'Rivers', icon: <Waves size={15} /> },
+                    { key: 'rain',   label: 'Rainfall', icon: <CloudRain size={15} /> },
+                ] as const).map(t => (
+                    <TouchableOpacity
+                        key={t.key}
+                        onPress={() => setTab(t.key)}
+                        style={{
+                            flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                            paddingVertical: 10, borderRadius: 12,
+                            backgroundColor: tab === t.key ? '#2563EB' : 'transparent',
+                        }}
+                    >
+                        {React.cloneElement(t.icon, { color: tab === t.key ? 'white' : '#94A3B8', strokeWidth: 2.5 })}
+                        <Text style={{ color: tab === t.key ? 'white' : '#94A3B8', fontWeight: '800', fontSize: 13, marginLeft: 6 }}>
+                            {t.label}
+                        </Text>
+                        {t.key === 'rivers' && activeAlerts.length > 0 && (
+                            <View style={{ marginLeft: 6, backgroundColor: tab === 'rivers' ? 'rgba(255,255,255,0.3)' : '#EF4444', borderRadius: 20, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
+                                <Text style={{ color: 'white', fontSize: 10, fontWeight: '900' }}>{activeAlerts.length}</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            {/* ── Content ── */}
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48 }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2563EB" />}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Active alerts banner */}
-                {activeAlerts.length > 0 && (
-                    <View style={{ backgroundColor: '#FEF2F2', borderRadius: 16, padding: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderWidth: 1, borderColor: '#FECACA' }}>
-                        <AlertTriangle size={20} color="#DC2626" strokeWidth={2} style={{ marginTop: 1 }} />
-                        <View style={{ flex: 1 }}>
-                            <Text style={{ color: '#991B1B', fontWeight: '800', fontSize: 13, marginBottom: 3 }}>
-                                {activeAlerts.length} river gauge{activeAlerts.length > 1 ? 's' : ''} above normal
-                            </Text>
-                            <Text style={{ color: '#DC2626', fontSize: 12 }}>
-                                {activeAlerts.map(r => `${r.riverName} (${STATUS_CONFIG[r.status].label})`).join(' • ')}
-                            </Text>
-                        </View>
-                    </View>
-                )}
-
-                {/* River levels */}
-                <Text style={{ color: '#0F172A', fontSize: 15, fontWeight: '800', marginBottom: 10 }}>
-                    River Water Levels
-                </Text>
-                {rivers.length === 0 ? (
-                    <View style={{ backgroundColor: 'white', borderRadius: 20, padding: 32, alignItems: 'center', marginBottom: 20 }}>
-                        <Droplets size={40} color="#CBD5E1" strokeWidth={1.5} />
-                        <Text style={{ color: '#94A3B8', fontSize: 14, marginTop: 12 }}>No river data available</Text>
-                    </View>
-                ) : (
-                    rivers.map(river => {
-                        const cfg = STATUS_CONFIG[river.status];
-                        return (
-                            <View key={river.gaugeId} style={{ backgroundColor: 'white', borderRadius: 20, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 }}>
-                                {/* Status strip */}
-                                <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 5, backgroundColor: cfg.color, borderTopLeftRadius: 20, borderBottomLeftRadius: 20 }} />
-
-                                <View style={{ marginLeft: 10 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={{ color: '#0F172A', fontSize: 14, fontWeight: '800' }}>{river.riverName}</Text>
-                                            <Text style={{ color: '#64748B', fontSize: 12, marginTop: 1 }}>{river.stationName} · {river.district}</Text>
-                                        </View>
-                                        <View style={{ backgroundColor: cfg.bg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1, borderColor: cfg.color + '40' }}>
-                                            <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '800' }}>{cfg.label}</Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 6 }}>
-                                        <Text style={{ color: cfg.color, fontSize: 28, fontWeight: '900', letterSpacing: -1 }}>
-                                            {river.waterLevelMetres.toFixed(2)}
-                                        </Text>
-                                        <Text style={{ color: '#94A3B8', fontSize: 13, fontWeight: '600' }}>m</Text>
-                                        <View style={{ marginLeft: 8 }}>
-                                            <TrendIcon trend={river.trend} change={river.changeFromLastHour} />
-                                        </View>
-                                    </View>
-
-                                    <LevelBar
-                                        current={river.waterLevelMetres}
-                                        alert={river.alertLevel}
-                                        minorFlood={river.minorFloodLevel}
-                                        majorFlood={river.majorFloodLevel}
-                                    />
-
-                                    <Text style={{ color: '#94A3B8', fontSize: 11, marginTop: 6 }}>
-                                        Updated {dayjs(river.recordedAt).fromNow()}
+                {tab === 'rivers' ? (
+                    <>
+                        {/* Alert banner */}
+                        {activeAlerts.length > 0 && (
+                            <View style={{ backgroundColor: '#FEF2F2', borderRadius: 16, padding: 14, marginBottom: 14, flexDirection: 'row', alignItems: 'flex-start', borderWidth: 1.5, borderColor: '#FECACA' }}>
+                                <AlertTriangle size={20} color="#DC2626" strokeWidth={2} style={{ marginTop: 1, flexShrink: 0 }} />
+                                <View style={{ flex: 1, marginLeft: 10 }}>
+                                    <Text style={{ color: '#991B1B', fontWeight: '900', fontSize: 13, marginBottom: 4 }}>
+                                        {activeAlerts.length} gauge{activeAlerts.length > 1 ? 's' : ''} above safe level
                                     </Text>
+                                    {activeAlerts.map(r => (
+                                        <Text key={r.gaugeId} style={{ color: '#DC2626', fontSize: 12, marginBottom: 1 }}>
+                                            {STATUS_CONFIG[r.status].emoji}{'  '}{r.riverName} — {STATUS_CONFIG[r.status].label}
+                                        </Text>
+                                    ))}
                                 </View>
                             </View>
-                        );
-                    })
-                )}
+                        )}
 
-                {/* Rainfall */}
-                {rainfall.length > 0 && (
+                        {/* River cards */}
+                        {rivers.length === 0 ? (
+                            <View style={{ backgroundColor: 'white', borderRadius: 22, padding: 40, alignItems: 'center' }}>
+                                <Droplets size={48} color="#CBD5E1" strokeWidth={1.5} />
+                                <Text style={{ color: '#94A3B8', fontSize: 15, marginTop: 14, fontWeight: '600' }}>No river data available</Text>
+                                <Text style={{ color: '#CBD5E1', fontSize: 12, marginTop: 4 }}>Pull down to refresh</Text>
+                            </View>
+                        ) : (
+                            rivers.map(river => <RiverCard key={river.gaugeId} river={river} />)
+                        )}
+                    </>
+                ) : (
+                    /* ── Rainfall tab ── */
                     <>
-                        <Text style={{ color: '#0F172A', fontSize: 15, fontWeight: '800', marginBottom: 10, marginTop: 8 }}>
-                            Rainfall Readings
-                        </Text>
-                        {rainfall.map(r => {
-                            const isHeavy = r.rainfallMmPerHour > 25;
-                            const isCritical = r.rainfallMmPerHour > 50;
-                            const color = isCritical ? '#DC2626' : isHeavy ? '#EA580C' : '#2563EB';
-                            return (
-                                <View key={r.id} style={{ backgroundColor: 'white', borderRadius: 16, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 }}>
-                                    <View style={{ width: 42, height: 42, backgroundColor: color + '15', borderRadius: 13, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                                        <Droplets size={20} color={color} strokeWidth={2} />
+                        {rainfall.length === 0 ? (
+                            <View style={{ backgroundColor: 'white', borderRadius: 22, padding: 40, alignItems: 'center' }}>
+                                <CloudRain size={48} color="#CBD5E1" strokeWidth={1.5} />
+                                <Text style={{ color: '#94A3B8', fontSize: 15, marginTop: 14, fontWeight: '600' }}>No rainfall data</Text>
+                            </View>
+                        ) : (
+                            rainfall.map(r => {
+                                const rl = rainLabel(r.rainfallMmPerHour);
+                                const barPct = Math.min((r.rainfallMmPerHour / 75) * 100, 100);
+                                return (
+                                    <View key={r.id} style={{ backgroundColor: 'white', borderRadius: 20, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3, overflow: 'hidden' }}>
+                                        <View style={{ height: 4, backgroundColor: rl.color, position: 'absolute', left: 0, right: 0, top: 0 }} />
+
+                                        {/* Header */}
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                                            <View style={{ flex: 1, marginRight: 8 }}>
+                                                <Text style={{ color: '#0F172A', fontSize: 15, fontWeight: '800' }} numberOfLines={1}>{r.stationName}</Text>
+                                                <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 2 }}>{r.district} · {dayjs(r.recordedAt).fromNow()}</Text>
+                                            </View>
+                                            <View style={{ backgroundColor: rl.bg, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: rl.color + '40' }}>
+                                                <Text style={{ color: rl.color, fontWeight: '800', fontSize: 12 }}>{rl.text}</Text>
+                                            </View>
+                                        </View>
+
+                                        {/* Numbers */}
+                                        <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ color: rl.color, fontSize: 30, fontWeight: '900', letterSpacing: -1 }}>
+                                                    {r.rainfallMmPerHour.toFixed(1)}
+                                                </Text>
+                                                <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 1 }}>mm / hour</Text>
+                                            </View>
+                                            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                                                <Text style={{ color: '#0F172A', fontSize: 22, fontWeight: '800' }}>
+                                                    {r.cumulativeRain24h.toFixed(0)}
+                                                </Text>
+                                                <Text style={{ color: '#94A3B8', fontSize: 12, marginTop: 1 }}>mm last 24 hrs</Text>
+                                            </View>
+                                        </View>
+
+                                        {/* Intensity bar */}
+                                        <View style={{ height: 8, backgroundColor: '#F1F5F9', borderRadius: 4, overflow: 'hidden' }}>
+                                            <View style={{ height: '100%', width: `${barPct}%`, backgroundColor: rl.color, borderRadius: 4 }} />
+                                        </View>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                                            <Text style={{ color: '#CBD5E1', fontSize: 10 }}>0</Text>
+                                            <Text style={{ color: '#CBD5E1', fontSize: 10 }}>25 mm/hr</Text>
+                                            <Text style={{ color: '#CBD5E1', fontSize: 10 }}>50+</Text>
+                                        </View>
                                     </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ color: '#0F172A', fontSize: 13, fontWeight: '700' }}>{r.stationName}</Text>
-                                        <Text style={{ color: '#64748B', fontSize: 11, marginTop: 1 }}>{r.district} · {dayjs(r.recordedAt).fromNow()}</Text>
-                                    </View>
-                                    <View style={{ alignItems: 'flex-end' }}>
-                                        <Text style={{ color, fontSize: 18, fontWeight: '900' }}>{r.rainfallMmPerHour.toFixed(1)}</Text>
-                                        <Text style={{ color: '#94A3B8', fontSize: 10 }}>mm/hr</Text>
-                                        <Text style={{ color: '#64748B', fontSize: 10, marginTop: 1 }}>24h: {r.cumulativeRain24h.toFixed(0)} mm</Text>
-                                    </View>
-                                </View>
-                            );
-                        })}
+                                );
+                            })
+                        )}
                     </>
                 )}
             </ScrollView>

@@ -343,7 +343,19 @@ export default function AppNavigation() {
         <LocationProvider value={{ userLocation, userDistrict }}>
         <View style={{ flex: 1 }}>
             <OfflineBanner />
-            <NavigationContainer linking={linking}>
+            <NavigationContainer
+                linking={linking}
+                onStateChange={async () => {
+                    // Re-sync role from AsyncStorage on every navigation change.
+                    // This ensures that after login (which saves role then navigates),
+                    // the UserProvider immediately gets the correct role.
+                    const stored = await AsyncStorage.getItem('user');
+                    if (stored) {
+                        const role = (JSON.parse(stored).role as UserRole) || 'CITIZEN';
+                        setUserRole(role);
+                    }
+                }}
+            >
                 <Stack.Navigator
                     id="root-stack"
                     initialRouteName={userToken ? 'MainTabs' : 'Login'}

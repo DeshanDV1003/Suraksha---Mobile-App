@@ -11,7 +11,7 @@ import {
     Clock, CheckCircle2, ChevronRight, X, BookOpen,
 } from 'lucide-react-native';
 
-const STORAGE_KEY = 'education_read';
+const educationKey = (userId: string) => `education_read_${userId}`;
 
 interface Section {
     heading: string;
@@ -198,16 +198,24 @@ export default function EducationScreen() {
     const [openArticle, setOpenArticle] = useState<Article | null>(null);
 
     useFocusEffect(useCallback(() => {
-        AsyncStorage.getItem(STORAGE_KEY).then(raw => {
-            if (raw) setReadMap(JSON.parse(raw));
+        (async () => {
+            try {
+                const stored = await AsyncStorage.getItem('user');
+                const uid = stored ? JSON.parse(stored).id : null;
+                if (!uid) { setLoading(false); return; }
+                const raw = await AsyncStorage.getItem(educationKey(uid));
+                setReadMap(raw ? JSON.parse(raw) : {});
+            } catch {}
             setLoading(false);
-        }).catch(() => setLoading(false));
+        })();
     }, []));
 
     const markRead = async (id: string) => {
         const next = { ...readMap, [id]: true };
         setReadMap(next);
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        const stored = await AsyncStorage.getItem('user');
+        const uid = stored ? JSON.parse(stored).id : null;
+        if (uid) await AsyncStorage.setItem(educationKey(uid), JSON.stringify(next));
     };
 
     const totalRead = ARTICLES.filter(a => readMap[a.id]).length;

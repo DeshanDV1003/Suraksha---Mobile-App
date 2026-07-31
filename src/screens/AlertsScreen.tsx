@@ -169,7 +169,10 @@ export default function AlertsScreen() {
                                     }}
                                     safePlaces={safePlaces}
                                     onSeeAll={() => navigation.navigate('SafeZone', {
+                                        lat: userLocation?.lat,
+                                        lng: userLocation?.lng,
                                         dangerRadiusKm: alert.broadcastRadiusKm || (alert.type === 'EMERGENCY' ? 10 : 6),
+                                        name: alert.title,
                                     })}
                                 />
                             )}

@@ -8,33 +8,41 @@ interface TaskItemCardProps {
     location: string;
     description: string;
     time: string;
-    status: 'pending' | 'in-progress' | 'completed' | string;
+    status: string;
     onAccept?: () => void;
     onDecline?: () => void;
+    onComplete?: () => void;
     labels: {
         decline: string;
         accept: string;
         pending: string;
         inProgress: string;
         completed: string;
+        assigned?: string;
     };
 }
 
 const statusConfig: Record<string, { color: string; bg: string; label: (l: any) => string }> = {
-    pending:     { color: '#D97706', bg: '#FEF3C7', label: l => l.pending },
-    'in-progress': { color: '#2563EB', bg: '#DBEAFE', label: l => l.inProgress },
-    completed:   { color: '#059669', bg: '#D1FAE5', label: l => l.completed },
+    pending:      { color: '#D97706', bg: '#FEF3C7', label: l => l.pending },
+    assigned:     { color: '#7C3AED', bg: '#EDE9FE', label: l => l.assigned || 'Assigned' },
+    'in-progress':{ color: '#2563EB', bg: '#DBEAFE', label: l => l.inProgress },
+    resolved:     { color: '#059669', bg: '#D1FAE5', label: l => l.completed },
+    'en-route':   { color: '#0891B2', bg: '#CFFAFE', label: () => 'En Route' },
+    'on-site':    { color: '#0F766E', bg: '#CCFBF1', label: () => 'On Site' },
 };
 
 const stripColors: Record<string, string> = {
-    pending:     '#F59E0B',
-    'in-progress': '#2563EB',
-    completed:   '#10B981',
+    pending:      '#F59E0B',
+    assigned:     '#7C3AED',
+    'in-progress':'#2563EB',
+    resolved:     '#10B981',
+    'en-route':   '#0891B2',
+    'on-site':    '#0F766E',
 };
 
 export const TaskItemCard: React.FC<TaskItemCardProps> = ({
     title, location, description, time, status = 'pending',
-    onAccept, onDecline, labels,
+    onAccept, onDecline, onComplete, labels,
 }) => {
     const s = statusConfig[status] || statusConfig.pending;
     const strip = stripColors[status] || '#F59E0B';
@@ -85,8 +93,8 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                     <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600', marginLeft: 4, flex: 1 }}>{time}</Text>
                 </View>
 
-                {/* Action buttons for pending */}
-                {status === 'pending' && (
+                {/* Accept / Decline for pending or assigned tasks */}
+                {(status === 'pending' || status === 'assigned') && (
                     <View style={{ flexDirection: 'row', marginTop: 14, gap: 10 }}>
                         <TouchableOpacity
                             onPress={onDecline}
@@ -123,6 +131,25 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
+                )}
+
+                {/* Mark Complete for in-progress tasks */}
+                {(status === 'in-progress' || status === 'en-route' || status === 'on-site') && (
+                    <TouchableOpacity
+                        onPress={onComplete}
+                        activeOpacity={0.85}
+                        style={{ marginTop: 14, borderRadius: 14, overflow: 'hidden' }}
+                    >
+                        <LinearGradient
+                            colors={['#065F46', '#059669']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={{ paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                        >
+                            <CheckCircle2 size={15} color="white" strokeWidth={2.5} />
+                            <Text style={{ color: 'white', fontSize: 13, fontWeight: '700' }}>Mark as Completed</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
                 )}
             </View>
         </View>

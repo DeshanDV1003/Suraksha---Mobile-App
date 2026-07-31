@@ -236,9 +236,9 @@ export default function HomeScreen() {
                 <View style={{ flexDirection: 'row' }}>
                     <ActionGridCard label={t('home.damage_report') || 'Damage Report'} icon={ClipboardList} onPress={() => navigation.navigate('DamageReport')} bgColor="#EA580C" />
                     <ActionGridCard label={t('home.mental_support') || 'Counseling'} icon={HeartPulse} onPress={() => navigation.navigate('Support')} bgColor="#6D28D9" />
+                    <ActionGridCard label={t('home.donate') || 'Donate'} icon={Banknote} onPress={() => navigation.navigate('Donate')} bgColor="#059669" />
                 </View>
                 <View style={{ flexDirection: 'row' }}>
-                    <ActionGridCard label={t('home.donate') || 'Donate'} icon={Banknote} onPress={() => navigation.navigate('Donate')} bgColor="#059669" />
                     <ActionGridCard label={t('home.water_levels')} icon={Waves} onPress={() => navigation.navigate('WaterLevel')} bgColor="#0369A1" />
                     <ActionGridCard label={t('home.safe_zones')} icon={ShieldCheck} onPress={() => navigation.navigate('SafeZone')} bgColor="#16A34A" />
                     <ActionGridCard label={t('home.safe_route')} icon={Route} onPress={() => navigation.navigate('SafeRoute')} bgColor="#7C3AED" />

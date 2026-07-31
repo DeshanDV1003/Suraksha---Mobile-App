@@ -85,6 +85,7 @@ export const helpRequestService = {
 };
 
 export const reliefTokenService = {
+  getMyTokens: () => api.get('/relief-tokens/my'),
   issueToken: (data: any) => api.post('/relief-tokens/issue', data),
   claimToken: (data: any) => api.post('/relief-tokens/claim', data),
   recordDistribution: (data: any) => api.post('/relief-tokens/distribution', data),
