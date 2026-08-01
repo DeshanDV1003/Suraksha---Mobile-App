@@ -1,13 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-    View, Text, TextInput, TouchableOpacity,
+    View, Text, TextInput, TouchableOpacity, Image,
     Alert, ActivityIndicator, KeyboardAvoidingView,
-    Platform, ScrollView, StatusBar
+    Platform, ScrollView, StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { authService } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Eye, EyeOff, Mail, Lock, ShieldCheck } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Lock, ShieldCheck, ChevronDown, X } from 'lucide-react-native';
 import { registerForPushNotificationsAsync } from '../services/notificationService';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,8 +20,44 @@ const IS_EXPO_GO =
     Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
     (Constants as any).appOwnership === 'expo';
 
-// ── Validation helpers ─────────────────────────────────────────────────────────
 const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
+const RECENT_ACCOUNTS_KEY = 'recent_accounts';
+const MAX_RECENT = 3;
+
+interface RecentAccount {
+    id: string;
+    email: string;
+    name: string;
+}
+
+async function saveRecentAccount(account: RecentAccount) {
+    try {
+        const raw = await AsyncStorage.getItem(RECENT_ACCOUNTS_KEY);
+        const list: RecentAccount[] = raw ? JSON.parse(raw) : [];
+        // Remove duplicate then prepend latest
+        const filtered = list.filter(a => a.id !== account.id);
+        const updated = [account, ...filtered].slice(0, MAX_RECENT);
+        await AsyncStorage.setItem(RECENT_ACCOUNTS_KEY, JSON.stringify(updated));
+    } catch {}
+}
+
+async function loadRecentAccounts(): Promise<RecentAccount[]> {
+    try {
+        const raw = await AsyncStorage.getItem(RECENT_ACCOUNTS_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+}
+
+async function removeRecentAccount(id: string) {
+    try {
+        const raw = await AsyncStorage.getItem(RECENT_ACCOUNTS_KEY);
+        const list: RecentAccount[] = raw ? JSON.parse(raw) : [];
+        await AsyncStorage.setItem(RECENT_ACCOUNTS_KEY, JSON.stringify(list.filter(a => a.id !== id)));
+    } catch {}
+}
+
+function profilePicKey(userId: string) { return `profile_picture_${userId}`; }
 
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
@@ -35,6 +71,27 @@ export default function LoginScreen() {
     const [focusedField, setFocusedField] = useState<string | null>(null);
     const passwordRef = useRef<TextInput>(null);
 
+    const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([]);
+    const [accountPics, setAccountPics] = useState<Record<string, string | null>>({});
+    const [selectedAccount, setSelectedAccount] = useState<RecentAccount | null>(null);
+
+    useEffect(() => {
+        loadRecentAccounts().then(async list => {
+            setRecentAccounts(list);
+            // Pre-select the most recent account and fill email
+            if (list.length > 0) {
+                setSelectedAccount(list[0]);
+                setEmail(list[0].email);
+            }
+            // Load profile pictures for each account
+            const pics: Record<string, string | null> = {};
+            await Promise.all(list.map(async a => {
+                const pic = await AsyncStorage.getItem(profilePicKey(a.id));
+                pics[a.id] = pic || null;
+            }));
+            setAccountPics(pics);
+        });
+    }, []);
 
     const handleGoogleToken = async (idToken: string) => {
         try {
@@ -42,6 +99,7 @@ export default function LoginScreen() {
             const { token, user } = res.data;
             await AsyncStorage.setItem('token', token);
             await AsyncStorage.setItem('user', JSON.stringify(user));
+            await saveRecentAccount({ id: user.id, email: user.email, name: user.name });
             registerForPushNotificationsAsync().catch(() => {});
             navigation.replace('MainTabs');
         } catch (err: any) {
@@ -52,7 +110,6 @@ export default function LoginScreen() {
         }
     };
 
-    // ── Field validation ───────────────────────────────────────────────────────
     const validate = () => {
         const e: Record<string, string> = {};
         if (!email.trim()) e.email = 'Email address is required.';
@@ -66,7 +123,6 @@ export default function LoginScreen() {
         if (errors[field]) setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
     };
 
-    // ── Login ──────────────────────────────────────────────────────────────────
     const handleLogin = async () => {
         if (!validate()) return;
         setLoading(true);
@@ -75,6 +131,7 @@ export default function LoginScreen() {
             const { token, user } = res.data;
             await AsyncStorage.setItem('token', token);
             await AsyncStorage.setItem('user', JSON.stringify(user));
+            await saveRecentAccount({ id: user.id, email: user.email, name: user.name });
             registerForPushNotificationsAsync().catch(() => {});
             navigation.replace('MainTabs');
         } catch (error: any) {
@@ -90,20 +147,25 @@ export default function LoginScreen() {
         }
     };
 
-    const handleGooglePress = () => {
-        if (IS_EXPO_GO) {
-            Alert.alert(
-                'Google Sign-In',
-                'Google Sign-In is not supported in Expo Go. Please use your email and password, or install the full app build.',
-                [{ text: 'OK' }]
-            );
-            return;
-        }
-        // Full Google OAuth flow — works in APK/development build
-        Alert.alert('Google Sign-In', 'Coming soon in the app build.');
+    const handleSelectAccount = (account: RecentAccount) => {
+        setSelectedAccount(account);
+        setEmail(account.email);
+        setPassword('');
+        setErrors({});
+        setTimeout(() => passwordRef.current?.focus(), 100);
     };
 
-    // ── UI ─────────────────────────────────────────────────────────────────────
+    const handleRemoveAccount = async (account: RecentAccount) => {
+        await removeRecentAccount(account.id);
+        const updated = recentAccounts.filter(a => a.id !== account.id);
+        setRecentAccounts(updated);
+        if (selectedAccount?.id === account.id) {
+            setSelectedAccount(updated[0] || null);
+            setEmail(updated[0]?.email || '');
+            setPassword('');
+        }
+    };
+
     const fieldStyle = (key: string) => ({
         flexDirection: 'row' as const,
         alignItems: 'center' as const,
@@ -114,6 +176,9 @@ export default function LoginScreen() {
         paddingHorizontal: 16,
         marginBottom: 4,
     });
+
+    const initials = (name: string) =>
+        name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
     return (
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -143,27 +208,109 @@ export default function LoginScreen() {
                         paddingBottom: insets.bottom + 24, minHeight: 420,
                     }}>
                         <Text style={{ color: '#0F172A', fontSize: 24, fontWeight: '800', marginBottom: 4 }}>Welcome back</Text>
-                        <Text style={{ color: '#64748B', fontSize: 14, marginBottom: 28 }}>Sign in to your account to continue</Text>
+                        <Text style={{ color: '#64748B', fontSize: 14, marginBottom: recentAccounts.length > 0 ? 20 : 28 }}>
+                            Sign in to your account to continue
+                        </Text>
 
-                        {/* Email */}
-                        <Text style={{ color: '#374151', fontSize: 12, fontWeight: '700', marginBottom: 8, marginLeft: 4, letterSpacing: 0.5 }}>EMAIL ADDRESS</Text>
-                        <View style={fieldStyle('email')}>
-                            <Mail size={18} color={errors.email ? '#EF4444' : focusedField === 'email' ? '#2563EB' : '#94A3B8'} strokeWidth={2} />
-                            <TextInput
-                                style={{ flex: 1, paddingVertical: 15, paddingHorizontal: 12, color: '#0F172A', fontSize: 15, fontWeight: '500' }}
-                                placeholder="you@example.com"
-                                placeholderTextColor="#CBD5E1"
-                                value={email}
-                                onChangeText={v => { setEmail(v); clearError('email'); }}
-                                autoCapitalize="none"
-                                keyboardType="email-address"
-                                returnKeyType="next"
-                                onSubmitEditing={() => passwordRef.current?.focus()}
-                                onFocus={() => setFocusedField('email')}
-                                onBlur={() => setFocusedField(null)}
-                            />
-                        </View>
-                        {errors.email ? <Text style={{ color: '#EF4444', fontSize: 12, marginBottom: 12, marginLeft: 4 }}>{errors.email}</Text> : <View style={{ height: 16 }} />}
+                        {/* Recent accounts */}
+                        {recentAccounts.length > 0 && (
+                            <View style={{ marginBottom: 24 }}>
+                                <Text style={{ color: '#374151', fontSize: 12, fontWeight: '700', marginBottom: 10, letterSpacing: 0.5 }}>
+                                    RECENT ACCOUNTS
+                                </Text>
+                                {recentAccounts.map(account => {
+                                    const pic = accountPics[account.id];
+                                    const isActive = selectedAccount?.id === account.id;
+                                    return (
+                                        <TouchableOpacity
+                                            key={account.id}
+                                            onPress={() => handleSelectAccount(account)}
+                                            activeOpacity={0.7}
+                                            style={{
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                backgroundColor: isActive ? '#EFF6FF' : '#F8FAFC',
+                                                borderWidth: 1.5,
+                                                borderColor: isActive ? '#2563EB' : '#E2E8F0',
+                                                borderRadius: 16,
+                                                paddingHorizontal: 14,
+                                                paddingVertical: 12,
+                                                marginBottom: 8,
+                                            }}
+                                        >
+                                            {/* Avatar */}
+                                            {pic ? (
+                                                <Image
+                                                    source={{ uri: pic }}
+                                                    style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }}
+                                                />
+                                            ) : (
+                                                <View style={{
+                                                    width: 40, height: 40, borderRadius: 20,
+                                                    backgroundColor: isActive ? '#DBEAFE' : '#E2E8F0',
+                                                    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                                                }}>
+                                                    <Text style={{ color: isActive ? '#1D4ED8' : '#64748B', fontSize: 14, fontWeight: '800' }}>
+                                                        {initials(account.name)}
+                                                    </Text>
+                                                </View>
+                                            )}
+
+                                            {/* Name + email */}
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ color: '#0F172A', fontSize: 14, fontWeight: '700' }}>{account.name}</Text>
+                                                <Text style={{ color: '#64748B', fontSize: 12, marginTop: 1 }}>{account.email}</Text>
+                                            </View>
+
+                                            {/* Active indicator or remove */}
+                                            {isActive
+                                                ? <ChevronDown size={16} color="#2563EB" strokeWidth={2.5} />
+                                                : (
+                                                    <TouchableOpacity
+                                                        onPress={() => handleRemoveAccount(account)}
+                                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                                    >
+                                                        <X size={16} color="#CBD5E1" strokeWidth={2.5} />
+                                                    </TouchableOpacity>
+                                                )
+                                            }
+                                        </TouchableOpacity>
+                                    );
+                                })}
+
+                                {/* Use different account */}
+                                <TouchableOpacity
+                                    onPress={() => { setSelectedAccount(null); setEmail(''); setPassword(''); setErrors({}); }}
+                                    style={{ alignItems: 'center', paddingVertical: 6 }}
+                                >
+                                    <Text style={{ color: '#2563EB', fontSize: 13, fontWeight: '600' }}>+ Use a different account</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {/* Email field — hide when an account is selected (it's shown in the card above) */}
+                        {!selectedAccount && (
+                            <>
+                                <Text style={{ color: '#374151', fontSize: 12, fontWeight: '700', marginBottom: 8, marginLeft: 4, letterSpacing: 0.5 }}>EMAIL ADDRESS</Text>
+                                <View style={fieldStyle('email')}>
+                                    <Mail size={18} color={errors.email ? '#EF4444' : focusedField === 'email' ? '#2563EB' : '#94A3B8'} strokeWidth={2} />
+                                    <TextInput
+                                        style={{ flex: 1, paddingVertical: 15, paddingHorizontal: 12, color: '#0F172A', fontSize: 15, fontWeight: '500' }}
+                                        placeholder="you@example.com"
+                                        placeholderTextColor="#CBD5E1"
+                                        value={email}
+                                        onChangeText={v => { setEmail(v); clearError('email'); }}
+                                        autoCapitalize="none"
+                                        keyboardType="email-address"
+                                        returnKeyType="next"
+                                        onSubmitEditing={() => passwordRef.current?.focus()}
+                                        onFocus={() => setFocusedField('email')}
+                                        onBlur={() => setFocusedField(null)}
+                                    />
+                                </View>
+                                {errors.email ? <Text style={{ color: '#EF4444', fontSize: 12, marginBottom: 12, marginLeft: 4 }}>{errors.email}</Text> : <View style={{ height: 16 }} />}
+                            </>
+                        )}
 
                         {/* Password */}
                         <Text style={{ color: '#374151', fontSize: 12, fontWeight: '700', marginBottom: 8, marginLeft: 4, letterSpacing: 0.5 }}>PASSWORD</Text>
@@ -195,7 +342,7 @@ export default function LoginScreen() {
                             </LinearGradient>
                         </TouchableOpacity>
 
-                        {/* Google Sign-In — hidden in Expo Go, shown in APK build */}
+                        {/* Google Sign-In */}
                         {!IS_EXPO_GO && (
                             <>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
@@ -204,7 +351,7 @@ export default function LoginScreen() {
                                     <View style={{ flex: 1, height: 1, backgroundColor: '#E2E8F0' }} />
                                 </View>
                                 <TouchableOpacity
-                                    onPress={handleGooglePress}
+                                    onPress={() => Alert.alert('Google Sign-In', 'Coming soon in the app build.')}
                                     disabled={loading || googleLoading}
                                     activeOpacity={0.85}
                                     style={{

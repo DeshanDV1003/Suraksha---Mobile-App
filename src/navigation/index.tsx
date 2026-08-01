@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Platform, TouchableOpacity, StatusBar } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, Platform, TouchableOpacity, StatusBar, AppState } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -220,14 +220,15 @@ function MainTabNavigator() {
 
 export default function AppNavigation() {
     const [isLoading, setIsLoading] = React.useState(true);
-    const [userToken, setUserToken] = React.useState<string | null>(null);
     const [userRole, setUserRole] = React.useState<UserRole>('CITIZEN');
+    const navigationRef = useRef<any>(null);
+    const appState = useRef(AppState.currentState);
     const [locationGranted, setLocationGranted] = React.useState(false);
     const [userLocation, setUserLocation] = React.useState<UserLocation | null>(null);
     const [userDistrict, setUserDistrict] = React.useState<string | null>(null);
 
     React.useEffect(() => {
-        const checkAuth = async () => {
+        const init = async () => {
             try {
                 // Restore saved language before anything else renders
                 const savedLang = await AsyncStorage.getItem('app_language');
@@ -237,7 +238,6 @@ export default function AppNavigation() {
                 const { status } = await Location.getForegroundPermissionsAsync();
                 if (status === 'granted') {
                     setLocationGranted(true);
-                    // Get last known position immediately for fast startup
                     try {
                         const last = await Location.getLastKnownPositionAsync();
                         if (last) {
@@ -245,7 +245,6 @@ export default function AppNavigation() {
                             reverseGeocodeDistrict(last.coords.latitude, last.coords.longitude)
                                 .then(d => { if (d) setUserDistrict(d); });
                         }
-                        // Fresh position in background — updates both coords and district
                         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
                             .then(async pos => {
                                 setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
@@ -255,36 +254,32 @@ export default function AppNavigation() {
                             .catch(() => {});
                     } catch {}
                 }
-                // (if not granted, locationGranted stays false → LocationGateScreen shows)
 
-                const token = await AsyncStorage.getItem('token');
-                if (!token) { setIsLoading(false); return; }
-
-                // Verify token is still valid — if backend rejects it, force login
-                const res = await fetch(`${API_BASE_URL}/users/me`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                if (res.ok) {
-                    // Refresh stored user with latest data (picks up profilePicture etc.)
-                    const fresh = await res.json();
-                    await AsyncStorage.setItem('user', JSON.stringify(fresh));
-                    setUserRole((fresh.role as UserRole) || 'CITIZEN');
-                    setUserToken(token);
-                } else {
-                    // Token expired or invalid — clear and show login
-                    await AsyncStorage.multiRemove(['token', 'user']);
-                }
-            } catch {
-                // Backend unreachable — trust the stored token so offline still works
-                const token = await AsyncStorage.getItem('token');
+                // Restore role from storage so UserProvider is ready after login
                 const stored = await AsyncStorage.getItem('user');
                 if (stored) setUserRole((JSON.parse(stored).role as UserRole) || 'CITIZEN');
-                setUserToken(token);
-            } finally {
+            } catch {}
+            finally {
                 setIsLoading(false);
             }
         };
-        checkAuth();
+        init();
+
+        // When the app returns from background (screen lock / home button / app switch),
+        // force the user back to the Login screen for a fresh session.
+        const subscription = AppState.addEventListener('change', nextState => {
+            if (appState.current === 'background' && nextState === 'active') {
+                // Clear in-memory role so previous user's UI doesn't flash
+                setUserRole('CITIZEN');
+                navigationRef.current?.reset({
+                    index: 0,
+                    routes: [{ name: 'Login' }],
+                });
+            }
+            appState.current = nextState;
+        });
+
+        return () => subscription.remove();
     }, []);
 
     if (isLoading) {
@@ -344,6 +339,7 @@ export default function AppNavigation() {
         <View style={{ flex: 1 }}>
             <OfflineBanner />
             <NavigationContainer
+                ref={navigationRef}
                 linking={linking}
                 onStateChange={async () => {
                     // Re-sync role from AsyncStorage on every navigation change.
@@ -358,7 +354,7 @@ export default function AppNavigation() {
             >
                 <Stack.Navigator
                     id="root-stack"
-                    initialRouteName={userToken ? 'MainTabs' : 'Login'}
+                    initialRouteName="Login"
                     screenOptions={{ headerShown: false }}
                 >
                     <Stack.Screen name="Login" component={LoginScreen} />

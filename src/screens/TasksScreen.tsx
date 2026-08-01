@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { ScrollView, View, Text, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useFocusEffect } from '@react-navigation/native';
 import { Header } from '../components/common/Header';
 import { TaskItemCard } from '../components/TasksScreen/TaskItemCard';
 import { volunteerService } from '../services/api';
+import { useToast } from '../context/ToastContext';
 import { ClipboardX, Clock, Play, CheckCircle2 } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -13,12 +15,15 @@ type TabFilter = 'ALL' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 
 export default function TasksScreen() {
     const { t } = useTranslation();
+    const { success, error: showError } = useToast();
     const [tasks, setTasks] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [refreshing, setRefreshing] = React.useState(false);
+    const [updatingId, setUpdatingId] = React.useState<string | null>(null);
     const [activeTab, setActiveTab] = React.useState<TabFilter>('ALL');
 
-    const fetchTasks = async () => {
+    const fetchTasks = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const res = await volunteerService.getMyTasks();
             setTasks(res.data || []);
@@ -30,16 +35,28 @@ export default function TasksScreen() {
         }
     };
 
-    React.useEffect(() => { fetchTasks(); }, []);
+    useFocusEffect(
+        useCallback(() => {
+            fetchTasks();
+        }, [])
+    );
 
-    const onRefresh = () => { setRefreshing(true); fetchTasks(); };
+    const onRefresh = () => { setRefreshing(true); fetchTasks(true); };
 
     const handleUpdateStatus = async (taskId: string, status: string) => {
+        setUpdatingId(taskId);
         try {
             await volunteerService.updateTaskStatus(taskId, status);
-            fetchTasks();
-        } catch (error) {
-            console.error('Failed to update task status:', error);
+            const label = status === 'RESOLVED' ? 'Task marked as completed'
+                : status === 'IN_PROGRESS' ? 'Task accepted'
+                : 'Task declined';
+            success(label, '');
+            await fetchTasks(true);
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.message || 'Failed to update task';
+            showError('Update failed', msg);
+        } finally {
+            setUpdatingId(null);
         }
     };
 
@@ -133,6 +150,7 @@ export default function TasksScreen() {
                             description={task.description || ''}
                             time={dayjs(task.createdAt).fromNow()}
                             status={task.status?.toLowerCase().replace(/_/g, '-') || 'pending'}
+                            loading={updatingId === task.id}
                             labels={{
                                 decline: t('common.decline') || 'Decline',
                                 accept: t('common.accept') || 'Accept',

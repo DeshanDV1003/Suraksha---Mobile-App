@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { MapPin, Clock, CheckCircle2, XCircle, ChevronRight } from 'lucide-react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { MapPin, Clock, CheckCircle2, XCircle } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface TaskItemCardProps {
@@ -9,6 +9,7 @@ interface TaskItemCardProps {
     description: string;
     time: string;
     status: string;
+    loading?: boolean;
     onAccept?: () => void;
     onDecline?: () => void;
     onComplete?: () => void;
@@ -41,7 +42,7 @@ const stripColors: Record<string, string> = {
 };
 
 export const TaskItemCard: React.FC<TaskItemCardProps> = ({
-    title, location, description, time, status = 'pending',
+    title, location, description, time, status = 'pending', loading = false,
     onAccept, onDecline, onComplete, labels,
 }) => {
     const s = statusConfig[status] || statusConfig.pending;
@@ -98,27 +99,30 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                     <View style={{ flexDirection: 'row', marginTop: 14, gap: 10 }}>
                         <TouchableOpacity
                             onPress={onDecline}
+                            disabled={loading}
                             activeOpacity={0.7}
                             style={{
                                 flex: 1,
                                 borderWidth: 1.5,
-                                borderColor: '#FCA5A5',
+                                borderColor: loading ? '#E2E8F0' : '#FCA5A5',
                                 borderRadius: 14,
                                 paddingVertical: 12,
                                 alignItems: 'center',
                                 flexDirection: 'row',
                                 justifyContent: 'center',
                                 gap: 6,
+                                opacity: loading ? 0.5 : 1,
                             }}
                         >
-                            <XCircle size={15} color="#EF4444" strokeWidth={2.5} />
-                            <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '700' }}>{labels.decline}</Text>
+                            <XCircle size={15} color={loading ? '#CBD5E1' : '#EF4444'} strokeWidth={2.5} />
+                            <Text style={{ color: loading ? '#CBD5E1' : '#EF4444', fontSize: 13, fontWeight: '700' }}>{labels.decline}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             onPress={onAccept}
+                            disabled={loading}
                             activeOpacity={0.85}
-                            style={{ flex: 1, borderRadius: 14, overflow: 'hidden' }}
+                            style={{ flex: 1, borderRadius: 14, overflow: 'hidden', opacity: loading ? 0.7 : 1 }}
                         >
                             <LinearGradient
                                 colors={['#1E3A8A', '#2563EB']}
@@ -126,8 +130,10 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                                 end={{ x: 1, y: 0 }}
                                 style={{ paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
                             >
-                                <CheckCircle2 size={15} color="white" strokeWidth={2.5} />
-                                <Text style={{ color: 'white', fontSize: 13, fontWeight: '700' }}>{labels.accept}</Text>
+                                {loading
+                                    ? <ActivityIndicator size="small" color="white" />
+                                    : <><CheckCircle2 size={15} color="white" strokeWidth={2.5} /><Text style={{ color: 'white', fontSize: 13, fontWeight: '700' }}>{labels.accept}</Text></>
+                                }
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
@@ -137,8 +143,9 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                 {(status === 'in-progress' || status === 'en-route' || status === 'on-site') && (
                     <TouchableOpacity
                         onPress={onComplete}
+                        disabled={loading}
                         activeOpacity={0.85}
-                        style={{ marginTop: 14, borderRadius: 14, overflow: 'hidden' }}
+                        style={{ marginTop: 14, borderRadius: 14, overflow: 'hidden', opacity: loading ? 0.7 : 1 }}
                     >
                         <LinearGradient
                             colors={['#065F46', '#059669']}
@@ -146,8 +153,10 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                             end={{ x: 1, y: 0 }}
                             style={{ paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
                         >
-                            <CheckCircle2 size={15} color="white" strokeWidth={2.5} />
-                            <Text style={{ color: 'white', fontSize: 13, fontWeight: '700' }}>Mark as Completed</Text>
+                            {loading
+                                ? <ActivityIndicator size="small" color="white" />
+                                : <><CheckCircle2 size={15} color="white" strokeWidth={2.5} /><Text style={{ color: 'white', fontSize: 13, fontWeight: '700' }}>Mark as Completed</Text></>
+                            }
                         </LinearGradient>
                     </TouchableOpacity>
                 )}
