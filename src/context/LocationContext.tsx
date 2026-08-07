@@ -5,14 +5,16 @@ export interface UserLocation {
     lng: number;
 }
 
-interface LocationContextValue {
+export interface LocationContextValue {
     userLocation: UserLocation | null;
-    userDistrict: string | null; // e.g. "Galle", "Colombo"
+    userDistrict: string | null;
 }
 
 const LocationContext = createContext<LocationContextValue>({ userLocation: null, userDistrict: null });
 
-export const LocationProvider = LocationContext.Provider;
+export function LocationProvider({ value, children }: { value: LocationContextValue; children: React.ReactNode }) {
+    return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>;
+}
 
 export function useUserLocation(): UserLocation | null {
     return useContext(LocationContext).userLocation;

@@ -94,7 +94,7 @@ export const TaskItemCard: React.FC<TaskItemCardProps> = ({
                     <Text style={{ color: '#94A3B8', fontSize: 11, fontWeight: '600', marginLeft: 4, flex: 1 }}>{time}</Text>
                 </View>
 
-                {/* Accept / Decline for pending or assigned tasks */}
+                {/* Accept / Decline — only for assigned tasks; pending tasks have no volunteer to decline */}
                 {(status === 'pending' || status === 'assigned') && (
                     <View style={{ flexDirection: 'row', marginTop: 14, gap: 10 }}>
                         <TouchableOpacity

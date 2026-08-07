@@ -56,7 +56,7 @@ export default function ReliefCampsScreen() {
     const [showAll, setShowAll] = useState(false);
     const userLocation = useUserLocation();
 
-    const NEAR_RADIUS_KM = 30;
+    const NEAR_RADIUS_KM = 50; // wider radius — Sri Lanka is small
     const DEFAULT_SHOW = 3;
 
     const fetchCamps = async () => {
@@ -109,9 +109,10 @@ export default function ReliefCampsScreen() {
                 : null;
             return { ...camp, _distKm: distKm };
         })
-        .sort((a, b) => (a._distKm ?? 999) - (b._distKm ?? 999));
+        .sort((a, b) => (a._distKm ?? 9999) - (b._distKm ?? 9999));
 
-    // Camps within the near radius (or all if location unknown)
+    // Show all camps when location is known but filter within radius;
+    // when location is unknown keep all sorted by DB order (all _distKm null)
     const nearby = userLocation
         ? allWithDistance.filter(c => c._distKm !== null && c._distKm <= NEAR_RADIUS_KM)
         : allWithDistance;
@@ -120,7 +121,7 @@ export default function ReliefCampsScreen() {
     const sorted = showAll ? nearby : nearby.slice(0, DEFAULT_SHOW);
 
     const formatDistance = (camp: any) => {
-        if (camp._distKm === null) return camp.distance || 'Location Unknown';
+        if (camp._distKm === null) return userLocation ? 'Too far' : 'Locating…';
         return camp._distKm < 1
             ? `${Math.round(camp._distKm * 1000)} m away`
             : `${camp._distKm.toFixed(1)} km away`;
@@ -290,12 +291,12 @@ export default function ReliefCampsScreen() {
                 ) : nearby.length === 0 ? (
                     <View style={{ backgroundColor: 'white', borderRadius: 20, padding: 32, alignItems: 'center', marginTop: 8 }}>
                         <Text style={{ fontSize: 16, fontWeight: '800', color: '#475569', marginBottom: 8 }}>
-                            No Camps Within {NEAR_RADIUS_KM} km
+                            {userLocation ? `No Camps Within ${NEAR_RADIUS_KM} km` : 'Acquiring Your Location…'}
                         </Text>
                         <Text style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 20 }}>
                             {userLocation
                                 ? `No relief camps found within ${NEAR_RADIUS_KM} km of your location.`
-                                : 'Enable location to see camps nearest to you.'}
+                                : 'Allow location access so we can show camps nearest to you.'}
                         </Text>
                         {allWithDistance.length > 0 && (
                             <TouchableOpacity

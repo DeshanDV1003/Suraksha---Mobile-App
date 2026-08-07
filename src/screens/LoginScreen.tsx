@@ -7,6 +7,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { authService } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from '../store';
 import { Eye, EyeOff, Mail, Lock, ShieldCheck, ChevronDown, X } from 'lucide-react-native';
 import { registerForPushNotificationsAsync } from '../services/notificationService';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -99,6 +100,7 @@ export default function LoginScreen() {
             const { token, user } = res.data;
             await AsyncStorage.setItem('token', token);
             await AsyncStorage.setItem('user', JSON.stringify(user));
+            useAuthStore.getState().setAuth(token, user);
             await saveRecentAccount({ id: user.id, email: user.email, name: user.name });
             registerForPushNotificationsAsync().catch(() => {});
             navigation.replace('MainTabs');
@@ -131,6 +133,7 @@ export default function LoginScreen() {
             const { token, user } = res.data;
             await AsyncStorage.setItem('token', token);
             await AsyncStorage.setItem('user', JSON.stringify(user));
+            useAuthStore.getState().setAuth(token, user);
             await saveRecentAccount({ id: user.id, email: user.email, name: user.name });
             registerForPushNotificationsAsync().catch(() => {});
             navigation.replace('MainTabs');

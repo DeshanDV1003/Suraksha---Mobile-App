@@ -49,7 +49,7 @@ export default function TasksScreen() {
             await volunteerService.updateTaskStatus(taskId, status);
             const label = status === 'RESOLVED' ? 'Task marked as completed'
                 : status === 'IN_PROGRESS' ? 'Task accepted'
-                : 'Task declined';
+                : 'Task returned to queue';
             success(label, '');
             await fetchTasks(true);
         } catch (err: any) {

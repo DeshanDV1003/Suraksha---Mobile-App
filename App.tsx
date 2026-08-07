@@ -19,6 +19,7 @@ import * as Location from 'expo-location';
 import { Alert } from 'react-native';
 import geohash from 'ngeohash';
 import { isAlertNearby } from './src/utils/distance';
+import { LocationProvider, UserLocation } from './src/context/LocationContext';
 
 const queryClient = new QueryClient();
 
@@ -108,6 +109,40 @@ const theme = {
 
 export default function App() {
   const initialized = React.useRef(false);
+  const [userLocation, setUserLocation] = React.useState<UserLocation | null>(null);
+  const [userDistrict, setUserDistrict] = React.useState<string | null>(null);
+
+  // Acquire real GPS on startup and keep it updated
+  React.useEffect(() => {
+    let watchSub: { remove: () => void } | null = null;
+
+    const updateFromCoords = async (lat: number, lng: number) => {
+      setUserLocation({ lat, lng });
+      try {
+        const [place] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (place) setUserDistrict(place.subregion || place.city || place.region || null);
+      } catch { /* reverse geocode failures are non-fatal */ }
+    };
+
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+
+        // Use HIGH accuracy (GPS satellite) — Balanced uses cell/WiFi which can be 20–100 km off
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        await updateFromCoords(pos.coords.latitude, pos.coords.longitude);
+
+        // Watch continuously; fires every 200 m of movement with GPS accuracy
+        watchSub = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, distanceInterval: 200 },
+          (loc) => { updateFromCoords(loc.coords.latitude, loc.coords.longitude); }
+        );
+      } catch { /* location unavailable — screens handle null gracefully */ }
+    })();
+
+    return () => { watchSub?.remove(); };
+  }, []);
 
   React.useEffect(() => {
     // Guard against React StrictMode double-invoke in development
@@ -128,14 +163,16 @@ export default function App() {
   }, []);
 
   const content = (
-    <QueryClientProvider client={queryClient}>
-      <PaperProvider theme={theme}>
-        <GlobalMobileAlertListener />
-        <ToastProvider>
-          <AppNavigation />
-        </ToastProvider>
-      </PaperProvider>
-    </QueryClientProvider>
+    <LocationProvider value={{ userLocation, userDistrict }}>
+      <QueryClientProvider client={queryClient}>
+        <PaperProvider theme={theme}>
+          <GlobalMobileAlertListener />
+          <ToastProvider>
+            <AppNavigation />
+          </ToastProvider>
+        </PaperProvider>
+      </QueryClientProvider>
+    </LocationProvider>
   );
 
   if (Platform.OS === 'web') {
