@@ -24,6 +24,10 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
     NEEDS_HELP: { bg: '#FEE2E2', text: '#991B1B', label: 'Needs Help' },
     SHELTERED:  { bg: '#DBEAFE', text: '#1E40AF', label: 'Sheltered' },
     UNKNOWN:    { bg: '#FEF3C7', text: '#92400E', label: 'Unknown' },
+    MISSING:    { bg: '#FEE2E2', text: '#7F1D1D', label: 'Missing' },
+    INJURED:    { bg: '#FEF3C7', text: '#92400E', label: 'Injured' },
+    EVACUATED:  { bg: '#EDE9FE', text: '#5B21B6', label: 'Evacuated' },
+    TRAPPED:    { bg: '#FEE2E2', text: '#7F1D1D', label: 'Trapped' },
 };
 
 export default function FamilySafetyScreen() {
@@ -39,6 +43,8 @@ export default function FamilySafetyScreen() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [memberName, setMemberName] = useState('');
     const [memberRelation, setMemberRelation] = useState('');
+    const [memberAge, setMemberAge] = useState('');
+    const [memberPhone, setMemberPhone] = useState('');
     const [addingMember, setAddingMember] = useState(false);
 
     const fetchData = async () => {
@@ -94,10 +100,14 @@ export default function FamilySafetyScreen() {
             await familyService.addMember({
                 name: memberName.trim(),
                 relation: memberRelation.trim() || 'Family',
+                age: memberAge ? parseInt(memberAge) : undefined,
+                phone: memberPhone.trim() || undefined,
                 status: 'UNKNOWN',
             });
             toast.success(t('common.success'), `${memberName} added to your family group.`);
             setMemberName('');
+            setMemberAge('');
+            setMemberPhone('');
             setMemberRelation('');
             setShowAddModal(false);
             fetchData();
@@ -281,9 +291,34 @@ export default function FamilySafetyScreen() {
                             value={memberRelation}
                             onChangeText={setMemberRelation}
                             placeholder="e.g. Spouse, Child, Parent"
-                            style={{ backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A', marginBottom: 24 }}
+                            style={{ backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A', marginBottom: 16 }}
                             placeholderTextColor="#94A3B8"
                         />
+
+                        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Age</Text>
+                                <TextInput
+                                    value={memberAge}
+                                    onChangeText={setMemberAge}
+                                    placeholder="e.g. 35"
+                                    keyboardType="numeric"
+                                    style={{ backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A' }}
+                                    placeholderTextColor="#94A3B8"
+                                />
+                            </View>
+                            <View style={{ flex: 2 }}>
+                                <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Phone (optional)</Text>
+                                <TextInput
+                                    value={memberPhone}
+                                    onChangeText={setMemberPhone}
+                                    placeholder="e.g. 071 234 5678"
+                                    keyboardType="phone-pad"
+                                    style={{ backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A' }}
+                                    placeholderTextColor="#94A3B8"
+                                />
+                            </View>
+                        </View>
 
                         <TouchableOpacity
                             onPress={handleAddMember}

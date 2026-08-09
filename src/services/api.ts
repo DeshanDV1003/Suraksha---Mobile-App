@@ -136,6 +136,16 @@ export const donateService = {
   submitDonation: (data: any) => api.post('/donations', data),
 };
 
+export const sosService = {
+  trigger: (data: { latitude: number | null; longitude: number | null }) =>
+    api.post('/incidents/sos', data),
+};
+
+export const supplyRequestService = {
+  createRequest: (data: any) => api.post('/supply-requests', data),
+  getMyRequests: () => api.get('/supply-requests/my'),
+};
+
 export const familyService = {
   reportStatus: (data: any) => api.post('/family/status', data),
   getMyStatus: () => api.get('/family/my-status'),

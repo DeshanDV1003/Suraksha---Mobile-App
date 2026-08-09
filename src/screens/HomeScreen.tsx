@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StatusBar } from 'react-native';
+import { ScrollView, View, Text, TouchableOpacity, StatusBar, Alert, ActivityIndicator, Vibration } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import { EmergencyCard } from '../components/HomeScreen/EmergencyCard';
@@ -26,14 +26,16 @@ import {
     Waves,
     ShieldCheck,
     Route,
+    Siren,
 } from 'lucide-react-native';
 import { ActionGridCard } from '../components/common/ActionGridCard';
-import { dashboardService, incidentService, alertService } from '../services/api';
+import { dashboardService, incidentService, alertService, sosService } from '../services/api';
 import { getCache, setCache } from '../services/cache';
 import { useUserLocation } from '../context/LocationContext';
 import { useIsVolunteer } from '../context/UserContext';
 import { isAlertNearby } from '../utils/distance';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import dayjs from 'dayjs';
@@ -60,8 +62,41 @@ export default function HomeScreen() {
     const [reports, setReports] = useState<any[]>([]);
     const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
     const [userName, setUserName] = useState('');
+    const [sosSending, setSosSending] = useState(false);
     const userLocation = useUserLocation();
     const isVolunteer = useIsVolunteer();
+
+    const handleSOS = () => {
+        Vibration.vibrate([0, 100, 100, 100]);
+        Alert.alert(
+            '🆘 SEND SOS EMERGENCY?',
+            'This will immediately alert all nearby responders and emergency services with your GPS location. Only use in a real emergency.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'SEND SOS NOW',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setSosSending(true);
+                        Vibration.vibrate(500);
+                        try {
+                            const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }).catch(() => null);
+                            await sosService.trigger({
+                                latitude: pos?.coords.latitude ?? null,
+                                longitude: pos?.coords.longitude ?? null,
+                            });
+                            Alert.alert('✅ SOS Sent', 'Emergency responders have been alerted with your location. Stay where you are if it is safe.');
+                        } catch {
+                            Alert.alert('⚠ Failed', 'Could not send SOS. Please call 119 or 1990 immediately.');
+                        } finally {
+                            setSosSending(false);
+                        }
+                    },
+                },
+            ],
+            { cancelable: true }
+        );
+    };
 
     const fetchStats = async () => {
         // 1. Show cached data immediately — no waiting
@@ -165,6 +200,38 @@ export default function HomeScreen() {
                 contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
                 showsVerticalScrollIndicator={false}
             >
+                {/* SOS Panic Button */}
+                <TouchableOpacity
+                    onPress={handleSOS}
+                    disabled={sosSending}
+                    activeOpacity={0.85}
+                    style={{ borderRadius: 20, overflow: 'hidden', marginBottom: 16 }}
+                >
+                    <LinearGradient
+                        colors={['#DC2626', '#7F1D1D']}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                        style={{
+                            flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                            paddingVertical: 18, paddingHorizontal: 24, gap: 12,
+                        }}
+                    >
+                        {sosSending ? (
+                            <>
+                                <ActivityIndicator color="white" size="small" />
+                                <Text style={{ color: 'white', fontSize: 18, fontWeight: '900', letterSpacing: 2 }}>SENDING SOS…</Text>
+                            </>
+                        ) : (
+                            <>
+                                <Siren size={26} color="white" />
+                                <View>
+                                    <Text style={{ color: 'white', fontSize: 22, fontWeight: '900', letterSpacing: 3 }}>SOS</Text>
+                                    <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10, fontWeight: '700', letterSpacing: 1 }}>TAP FOR EMERGENCY HELP</Text>
+                                </View>
+                            </>
+                        )}
+                    </LinearGradient>
+                </TouchableOpacity>
+
                 <EmergencyCard onReportPress={() => navigation.navigate('Report')} />
 
                 {/* Recent Alerts */}
@@ -221,6 +288,7 @@ export default function HomeScreen() {
                     <ActionGridCard label={t('home.resources') || 'Resources'} icon={Package} onPress={() => navigation.navigate('Resources')} bgColor="#0284C7" />
                 </View>
                 <View style={{ flexDirection: 'row' }}>
+                    <ActionGridCard label="Health Assistant" icon={Building2} onPress={() => navigation.navigate('Chatbot')} bgColor="#0891b2" />
                     <ActionGridCard label={t('home.relief_camps') || 'Relief Camps'} icon={Building2} onPress={() => navigation.navigate('ReliefCamps')} bgColor="#7C3AED" />
                     {isVolunteer && (
                         <ActionGridCard label={t('home.my_token') || 'My Token'} icon={QrCode} onPress={() => navigation.navigate('ReliefToken')} bgColor="#0D9488" />

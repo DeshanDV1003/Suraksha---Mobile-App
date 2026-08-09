@@ -7,7 +7,7 @@ import {
     Package, Phone, Plus, X, Search, MapPin,
     Truck, Zap, Anchor, Home, Users, Info,
 } from 'lucide-react-native';
-import { resourceService } from '../services/api';
+import { resourceService, supplyRequestService } from '../services/api';
 import { useUserDistrict, matchesDistrict } from '../context/LocationContext';
 import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 import { useToast } from '../context/ToastContext';
@@ -49,6 +49,14 @@ export default function ResourcesScreen() {
     const [showModal, setShowModal] = useState(false);
     const [showDetail, setShowDetail] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Supply request state
+    const [showRequestModal, setShowRequestModal] = useState(false);
+    const [reqItemType, setReqItemType] = useState('');
+    const [reqQuantity, setReqQuantity] = useState('1');
+    const [reqUrgency, setReqUrgency] = useState<'LOW'|'MEDIUM'|'HIGH'|'CRITICAL'>('MEDIUM');
+    const [reqNotes, setReqNotes] = useState('');
+    const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
     const [formData, setFormData] = useState({
         type: '', owner: '', location: '', capacity: '', contact: '',
     });
@@ -125,12 +133,20 @@ export default function ResourcesScreen() {
                 subtitle={t('resources.subtitle') || 'Available resources in your area'}
                 showBack
                 rightContent={
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                        onPress={() => setShowRequestModal(true)}
+                        style={{ paddingHorizontal: 12, height: 36, backgroundColor: '#DC2626', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                        <Text style={{ color: 'white', fontSize: 11, fontWeight: '900' }}>Request</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                         onPress={() => setShowModal(true)}
-                        style={{ width: 40, height: 40, backgroundColor: '#2563EB', borderRadius: 20, alignItems: 'center', justifyContent: 'center' }}
+                        style={{ width: 36, height: 36, backgroundColor: '#2563EB', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
                     >
-                        <Plus size={22} color="white" strokeWidth={2.5} />
+                        <Plus size={20} color="white" strokeWidth={2.5} />
                     </TouchableOpacity>
+                    </View>
                 }
             />
 
@@ -372,6 +388,102 @@ export default function ResourcesScreen() {
                                     }
                                 </TouchableOpacity>
                             </ScrollView>
+                        </View>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Supply Request Modal */}
+            <Modal visible={showRequestModal} animationType="slide" transparent onRequestClose={() => setShowRequestModal(false)}>
+                <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+                        <View style={{ backgroundColor: 'white', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 40 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                <Text style={{ fontSize: 20, fontWeight: '900', color: '#0F172A' }}>Request Supplies</Text>
+                                <TouchableOpacity onPress={() => setShowRequestModal(false)} style={{ padding: 6, backgroundColor: '#F1F5F9', borderRadius: 20 }}>
+                                    <X size={18} color="#64748B" />
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Item Type *</Text>
+                            <TextInput
+                                value={reqItemType}
+                                onChangeText={setReqItemType}
+                                placeholder="e.g. Food Packets, Blankets, Medicine"
+                                style={{ backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A', marginBottom: 14 }}
+                                placeholderTextColor="#94A3B8"
+                            />
+
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Quantity *</Text>
+                            <TextInput
+                                value={reqQuantity}
+                                onChangeText={setReqQuantity}
+                                placeholder="Number of units"
+                                keyboardType="numeric"
+                                style={{ backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A', marginBottom: 14 }}
+                                placeholderTextColor="#94A3B8"
+                            />
+
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 8 }}>Urgency</Text>
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                                {(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const).map(u => (
+                                    <TouchableOpacity
+                                        key={u}
+                                        onPress={() => setReqUrgency(u)}
+                                        style={{
+                                            flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center',
+                                            backgroundColor: reqUrgency === u
+                                                ? (u === 'CRITICAL' ? '#DC2626' : u === 'HIGH' ? '#EA580C' : u === 'MEDIUM' ? '#D97706' : '#16A34A')
+                                                : '#F1F5F9',
+                                        }}
+                                    >
+                                        <Text style={{ fontSize: 10, fontWeight: '900', color: reqUrgency === u ? 'white' : '#64748B' }}>{u}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <Text style={{ color: '#374151', fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Notes (optional)</Text>
+                            <TextInput
+                                value={reqNotes}
+                                onChangeText={setReqNotes}
+                                placeholder="Additional details..."
+                                multiline
+                                numberOfLines={2}
+                                style={{ backgroundColor: '#F8FAFC', borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, fontSize: 15, color: '#0F172A', marginBottom: 20, minHeight: 70 }}
+                                placeholderTextColor="#94A3B8"
+                            />
+
+                            <TouchableOpacity
+                                onPress={async () => {
+                                    if (!reqItemType.trim() || !reqQuantity.trim()) {
+                                        toast.show('Item type and quantity are required', 'error');
+                                        return;
+                                    }
+                                    setIsSubmittingRequest(true);
+                                    try {
+                                        await supplyRequestService.createRequest({
+                                            itemType: reqItemType.trim(),
+                                            quantity: parseInt(reqQuantity) || 1,
+                                            urgency: reqUrgency,
+                                            notes: reqNotes.trim() || undefined,
+                                        });
+                                        toast.show('Supply request submitted!', 'success');
+                                        setShowRequestModal(false);
+                                        setReqItemType(''); setReqQuantity('1'); setReqNotes(''); setReqUrgency('MEDIUM');
+                                    } catch {
+                                        toast.show('Failed to submit request', 'error');
+                                    } finally {
+                                        setIsSubmittingRequest(false);
+                                    }
+                                }}
+                                disabled={isSubmittingRequest}
+                                style={{ backgroundColor: '#1E3A8A', borderRadius: 16, padding: 16, alignItems: 'center' }}
+                            >
+                                {isSubmittingRequest
+                                    ? <ActivityIndicator size="small" color="white" />
+                                    : <Text style={{ color: 'white', fontSize: 16, fontWeight: '900' }}>Submit Request</Text>
+                                }
+                            </TouchableOpacity>
                         </View>
                     </View>
                 </KeyboardAvoidingView>

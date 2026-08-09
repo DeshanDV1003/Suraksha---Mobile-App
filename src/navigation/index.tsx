@@ -37,7 +37,8 @@ import SupportScreen from '../screens/SupportScreen';
 import WaterLevelScreen from '../screens/WaterLevelScreen';
 import SafeZoneScreen from '../screens/SafeZoneScreen';
 import SafeRouteScreen from '../screens/SafeRouteScreen';
-import { notificationService, volunteerService, API_BASE_URL } from '../services/api';
+import ChatbotScreen from '../screens/ChatbotScreen';
+import { notificationService, volunteerService, locationService, API_BASE_URL } from '../services/api';
 import i18n from '../i18n';
 
 const Stack = createNativeStackNavigator();
@@ -95,6 +96,7 @@ function HomeStackNavigator() {
             <Stack.Screen name="WaterLevel" component={WaterLevelScreen} />
             <Stack.Screen name="SafeZone" component={SafeZoneScreen} options={{ animation: 'slide_from_bottom' }} />
             <Stack.Screen name="SafeRoute" component={SafeRouteScreen} options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="Chatbot" component={ChatbotScreen} options={{ animation: 'slide_from_bottom' }} />
         </Stack.Navigator>
     );
 }
@@ -265,6 +267,18 @@ export default function AppNavigation() {
         };
         init();
 
+        // Volunteer GPS tracking — send location every 30s when role is set and field-eligible
+        let gpsInterval: ReturnType<typeof setInterval> | null = null;
+        if (['VOLUNTEER', 'FIELD_RESPONDER'].includes(userRole) && userRole !== 'CITIZEN') {
+            gpsInterval = setInterval(async () => {
+                try {
+                    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    locationService.logLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }).catch(() => {});
+                    setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                } catch {}
+            }, 30_000);
+        }
+
         // When the app returns from background (screen lock / home button / app switch),
         // force the user back to the Login screen for a fresh session.
         const subscription = AppState.addEventListener('change', nextState => {
@@ -279,8 +293,8 @@ export default function AppNavigation() {
             appState.current = nextState;
         });
 
-        return () => subscription.remove();
-    }, []);
+        return () => { subscription.remove(); if (gpsInterval) clearInterval(gpsInterval); };
+    }, [userRole]);
 
     if (isLoading) {
         return (

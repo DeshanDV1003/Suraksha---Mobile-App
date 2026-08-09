@@ -20,6 +20,7 @@ const SYNC_HANDLERS: Record<string, { method: string, endpoint: string | ((paylo
   RESOURCE_SUBMISSION:   { method: 'POST',  endpoint: '/resources' },
   DONATION_SUBMIT:       { method: 'POST',  endpoint: '/donations' },
   FAMILY_SAFETY_UPDATE:  { method: 'POST',  endpoint: '/family/status' },
+  SOS_PANIC:             { method: 'POST',  endpoint: '/incidents/sos' },
 };
 
 export async function syncPendingItems() {
