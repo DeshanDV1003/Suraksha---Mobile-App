@@ -16,6 +16,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.deshandvsteam.suraksha",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

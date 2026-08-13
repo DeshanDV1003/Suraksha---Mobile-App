@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://192.168.8.121:3002'; // Mobile Backend Port
+import { SOCKET_URL } from '../config'; // URL managed by start-dev.ps1
 
 class SocketService {
   private socket: any;
