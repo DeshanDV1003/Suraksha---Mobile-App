@@ -15,5 +15,5 @@ echo         The APK will be available to download
 echo         from expo.dev when complete.
 echo.
 cd "D:\Suraksha - Mobile App"
-powershell -ExecutionPolicy Bypass -Command "eas build -p android --profile preview"
+powershell -ExecutionPolicy Bypass -Command "npx eas-cli build -p android --profile preview"
 pause

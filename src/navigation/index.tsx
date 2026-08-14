@@ -39,6 +39,8 @@ import SafeZoneScreen from '../screens/SafeZoneScreen';
 import SafeRouteScreen from '../screens/SafeRouteScreen';
 import ChatbotScreen from '../screens/ChatbotScreen';
 import { notificationService, volunteerService, locationService, API_BASE_URL } from '../services/api';
+import { showLocalNotification } from '../services/notificationService';
+import { socketService } from '../services/socket';
 import i18n from '../i18n';
 
 const Stack = createNativeStackNavigator();
@@ -123,6 +125,16 @@ function MainTabNavigator() {
         };
         fetchBadgeCounts();
         const interval = setInterval(fetchBadgeCounts, 60000);
+
+        // Listen for real-time alerts via socket and show a local notification
+        // Local notifications work in both Expo Go and APK builds
+        socketService.on('new-alert', (alert: any) => {
+            const title = `🚨 ${alert.title || 'Emergency Alert'}`;
+            const body = alert.message || '';
+            showLocalNotification(title, body);
+            setUnreadAlerts(prev => prev + 1);
+        });
+
         return () => clearInterval(interval);
     }, []);
 

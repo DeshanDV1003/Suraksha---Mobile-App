@@ -10,6 +10,14 @@ const isExpoGo =
     Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
     (Constants as any).appOwnership === 'expo';
 
+// Fire a local notification — works in Expo Go and APK builds alike
+export const showLocalNotification = async (title: string, body: string) => {
+    await Notifications.scheduleNotificationAsync({
+        content: { title, body, sound: true },
+        trigger: null, // fire immediately
+    });
+};
+
 // Configure how local notifications are displayed (works in both Expo Go and builds)
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
