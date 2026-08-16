@@ -232,9 +232,19 @@ function MainTabNavigator() {
     );
 }
 
+const SESSION_DURATION_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+async function hasValidSession(): Promise<boolean> {
+    const token = await AsyncStorage.getItem('token');
+    const sessionStart = await AsyncStorage.getItem('session_start');
+    if (!token || !sessionStart) return false;
+    return Date.now() - parseInt(sessionStart, 10) < SESSION_DURATION_MS;
+}
+
 export default function AppNavigation() {
     const [isLoading, setIsLoading] = React.useState(true);
     const [userRole, setUserRole] = React.useState<UserRole>('CITIZEN');
+    const [initialRoute, setInitialRoute] = React.useState<'Login' | 'MainTabs'>('Login');
     const navigationRef = useRef<any>(null);
     const appState = useRef(AppState.currentState);
     const [locationGranted, setLocationGranted] = React.useState(false);
@@ -272,6 +282,10 @@ export default function AppNavigation() {
                 // Restore role from storage so UserProvider is ready after login
                 const stored = await AsyncStorage.getItem('user');
                 if (stored) setUserRole((JSON.parse(stored).role as UserRole) || 'CITIZEN');
+
+                // If a valid session exists, skip the Login screen entirely
+                const sessionValid = await hasValidSession();
+                if (sessionValid) setInitialRoute('MainTabs');
             } catch {}
             finally {
                 setIsLoading(false);
@@ -291,16 +305,15 @@ export default function AppNavigation() {
             }, 30_000);
         }
 
-        // When the app returns from background (screen lock / home button / app switch),
-        // force the user back to the Login screen for a fresh session.
-        const subscription = AppState.addEventListener('change', nextState => {
+        // When app returns from background: stay put if session is valid, redirect to Login only when expired
+        const subscription = AppState.addEventListener('change', async nextState => {
             if (appState.current === 'background' && nextState === 'active') {
-                // Clear in-memory role so previous user's UI doesn't flash
-                setUserRole('CITIZEN');
-                navigationRef.current?.reset({
-                    index: 0,
-                    routes: [{ name: 'Login' }],
-                });
+                const valid = await hasValidSession();
+                if (!valid) {
+                    setUserRole('CITIZEN');
+                    navigationRef.current?.reset({ index: 0, routes: [{ name: 'Login' }] });
+                }
+                // valid session → do nothing, user stays on their current screen
             }
             appState.current = nextState;
         });
@@ -380,7 +393,7 @@ export default function AppNavigation() {
             >
                 <Stack.Navigator
                     id="root-stack"
-                    initialRouteName="Login"
+                    initialRouteName={initialRoute}
                     screenOptions={{ headerShown: false }}
                 >
                     <Stack.Screen name="Login" component={LoginScreen} />

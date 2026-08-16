@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,23 @@ import {
   Linking,
   StyleSheet,
 } from 'react-native';
+
+class MapErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: any) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ height: 280, backgroundColor: '#1e2d47', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: '#64748b', fontSize: 12, textAlign: 'center', paddingHorizontal: 24 }}>
+            Map unavailable — Google Maps API key required.{'\n'}Routes still work below.
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -157,6 +174,7 @@ export default function SafeRouteScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
         {/* Map */}
+        <MapErrorBoundary>
         <View style={styles.mapContainer}>
           <MapView
             ref={mapRef}
@@ -195,6 +213,7 @@ export default function SafeRouteScreen() {
             </View>
           )}
         </View>
+        </MapErrorBoundary>
 
         {/* Controls */}
         <View style={styles.controls}>

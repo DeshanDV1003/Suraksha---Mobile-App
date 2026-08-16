@@ -7,6 +7,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { authService } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 import { useAuthStore } from '../store';
 import { Eye, EyeOff, Mail, Lock, ShieldCheck, ChevronDown, X } from 'lucide-react-native';
 import { registerForPushNotificationsAsync } from '../services/notificationService';
@@ -60,6 +61,21 @@ async function removeRecentAccount(id: string) {
 
 function profilePicKey(userId: string) { return `profile_picture_${userId}`; }
 
+async function saveOfflineCredentials(email: string, password: string, user: any, token: string) {
+    try {
+        const hash = await Crypto.digestStringAsync(
+            Crypto.CryptoDigestAlgorithm.SHA256,
+            `${email.trim().toLowerCase()}:${password}`,
+        );
+        await AsyncStorage.multiSet([
+            ['session_start', Date.now().toString()],
+            ['offline_credential_hash', hash],
+            ['offline_user', JSON.stringify(user)],
+            ['offline_token', token],
+        ]);
+    } catch {}
+}
+
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
@@ -100,6 +116,7 @@ export default function LoginScreen() {
             const { token, user } = res.data;
             await AsyncStorage.setItem('token', token);
             await AsyncStorage.setItem('user', JSON.stringify(user));
+            await AsyncStorage.setItem('session_start', Date.now().toString());
             useAuthStore.getState().setAuth(token, user);
             await saveRecentAccount({ id: user.id, email: user.email, name: user.name });
             registerForPushNotificationsAsync().catch(() => {});
@@ -135,16 +152,45 @@ export default function LoginScreen() {
             await AsyncStorage.setItem('user', JSON.stringify(user));
             useAuthStore.getState().setAuth(token, user);
             await saveRecentAccount({ id: user.id, email: user.email, name: user.name });
+            await saveOfflineCredentials(email, password, user, token);
             registerForPushNotificationsAsync().catch(() => {});
             navigation.replace('MainTabs');
         } catch (error: any) {
             const isNetwork = !error.response || error.code === 'ECONNABORTED' || error.message === 'Network Error';
-            Alert.alert(
-                'Login Failed',
-                isNetwork
-                    ? 'Cannot reach the server. Make sure your phone and PC are on the same Wi-Fi and the backend is running.'
-                    : error.response?.data?.error || error.response?.data?.message || 'Invalid email or password.'
-            );
+            if (isNetwork) {
+                // Try offline login with cached credentials
+                try {
+                    const [storedHash, offlineUserRaw, offlineToken] = await Promise.all([
+                        AsyncStorage.getItem('offline_credential_hash'),
+                        AsyncStorage.getItem('offline_user'),
+                        AsyncStorage.getItem('offline_token'),
+                    ]);
+                    if (storedHash && offlineUserRaw && offlineToken) {
+                        const hash = await Crypto.digestStringAsync(
+                            Crypto.CryptoDigestAlgorithm.SHA256,
+                            `${email.trim().toLowerCase()}:${password}`,
+                        );
+                        if (hash === storedHash) {
+                            const user = JSON.parse(offlineUserRaw);
+                            await AsyncStorage.setItem('token', offlineToken);
+                            await AsyncStorage.setItem('user', offlineUserRaw);
+                            await AsyncStorage.setItem('session_start', Date.now().toString());
+                            useAuthStore.getState().setAuth(offlineToken, user);
+                            navigation.replace('MainTabs');
+                            return;
+                        }
+                    }
+                } catch {}
+                Alert.alert(
+                    'No Connection',
+                    'Cannot reach the server. Connect to Wi-Fi or use your saved credentials to log in offline.',
+                );
+            } else {
+                Alert.alert(
+                    'Login Failed',
+                    error.response?.data?.error || error.response?.data?.message || 'Invalid email or password.',
+                );
+            }
         } finally {
             setLoading(false);
         }

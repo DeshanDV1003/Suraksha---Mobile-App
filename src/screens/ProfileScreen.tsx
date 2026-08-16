@@ -186,7 +186,7 @@ export default function ProfileScreen() {
 
     const handleLogout = () => {
         const doLogout = async () => {
-            await AsyncStorage.multiRemove(['token', 'user']);
+            await AsyncStorage.multiRemove(['token', 'user', 'session_start']);
             navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
         };
         if (Platform.OS === 'web') { if (window.confirm('Sign out?')) doLogout(); return; }

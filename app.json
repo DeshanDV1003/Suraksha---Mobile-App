@@ -17,7 +17,12 @@
     },
     "android": {
       "package": "com.deshandvsteam.suraksha",
-      "versionCode": 1,
+      "versionCode": 2,
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
