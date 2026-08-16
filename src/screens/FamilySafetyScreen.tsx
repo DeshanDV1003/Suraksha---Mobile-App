@@ -15,6 +15,7 @@ import {
 import { familyService } from '../services/api';
 import * as Location from 'expo-location';
 import { useToast } from '../context/ToastContext';
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -38,6 +39,7 @@ export default function FamilySafetyScreen() {
     const [familyMembers, setFamilyMembers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const { submit: submitStatusOffline } = useOfflineSubmit('FAMILY_SAFETY_UPDATE', '/family/status');
 
     // Add member modal state
     const [showAddModal, setShowAddModal] = useState(false);
@@ -74,15 +76,19 @@ export default function FamilySafetyScreen() {
                 coords = pos.coords;
             }
 
-            await familyService.reportStatus({
+            const payload = {
                 status: newStatus,
                 latitude: coords?.latitude ?? null,
                 longitude: coords?.longitude ?? null,
                 message: `Status updated to ${newStatus}`,
-            });
-
-            toast.success(t('common.success'), t('safety.status_updated') || 'Your safety status has been updated.');
-            fetchData();
+            };
+            const result = await submitStatusOffline(payload);
+            if (result.queued) {
+                toast.warning(t('common.offline_queued') || 'Queued', 'Status saved — will sync when you reconnect.');
+            } else {
+                toast.success(t('common.success'), t('safety.status_updated') || 'Your safety status has been updated.');
+                fetchData();
+            }
         } catch {
             toast.error(t('common.error'), t('safety.status_failed') || 'Failed to update status. Please try again.');
         } finally {

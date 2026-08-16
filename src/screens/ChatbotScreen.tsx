@@ -7,8 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import axios from 'axios';
 import { useUserLocation } from '../context/LocationContext';
 import { Header } from '../components/common/Header';
+import { API_BASE_URL } from '../config';
 
-const API = 'http://192.168.8.121:3001/api/chatbot/message';
+const API = `${API_BASE_URL}/chatbot/message`;
 
 interface Message {
   role: 'user' | 'model';

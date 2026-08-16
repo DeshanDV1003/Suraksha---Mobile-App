@@ -8,7 +8,7 @@ $API_DOMAIN  = "directly-tycoon-capture.ngrok-free.dev"
 $SOCK_DOMAIN = "coerce-revenge-stalemate.ngrok-free.dev"
 
 # Auth tokens for each ngrok account
-$TOKEN_API  = "3HtQlxBaKY5CQClpnuuMdkKoyG7_UgomEckctoe4rqzqrJSA"
+$TOKEN_API  = "3HtQIxBaKY5CQCIpnuuMdkKoyG7_UgomEckctoe4rqzqrJSA"
 $TOKEN_SOCK = "3HtRzxRHVSb5HFzP4qJEb4rWxsj_4Z6vMBF6fh7LmtHt8HY7B"
 
 Write-Host ""

@@ -9,7 +9,7 @@ echo =======================================
 echo.
 
 echo [1/2] Configuring Account 1 (API tunnel - port 3001)...
-ngrok config add-authtoken 3HtQlxBaKY5CQClpnuuMdkKoyG7_UgomEckctoe4rqzqrJSA
+ngrok config add-authtoken 3HtQIxBaKY5CQCIpnuuMdkKoyG7_UgomEckctoe4rqzqrJSA
 echo Done.
 
 echo.

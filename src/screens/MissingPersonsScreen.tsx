@@ -8,6 +8,7 @@ import { UserSearch, Plus, X, MapPin, Clock, User, Phone, FileText } from 'lucid
 import { Header } from '../components/common/Header';
 import { missingPersonService } from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -24,6 +25,7 @@ export default function MissingPersonsScreen() {
     const [selectedPerson, setSelectedPerson] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [form, setForm] = useState({ name: '', age: '', description: '', lastSeen: '' });
+    const { submit: submitOffline } = useOfflineSubmit('MISSING_PERSON_REPORT', '/missing-persons');
 
     const fetchData = async () => {
         try {
@@ -48,19 +50,24 @@ export default function MissingPersonsScreen() {
         }
         setIsSubmitting(true);
         try {
-            await missingPersonService.report({
+            const payload = {
                 name:        form.name.trim(),
                 age:         form.age ? parseInt(form.age) : null,
                 description: form.description.trim(),
                 lastSeen:    form.lastSeen.trim(),
                 photo:       null,
-            });
-            toast.success(t('common.success'), t('missing_persons.report_success') || 'Report submitted successfully');
+            };
+            const result = await submitOffline(payload);
+            if (result.queued) {
+                toast.warning(t('common.offline_queued') || 'Queued', 'Report saved — will be submitted when you reconnect.');
+            } else {
+                toast.success(t('common.success'), t('missing_persons.report_success') || 'Report submitted successfully');
+                fetchData();
+            }
             setShowModal(false);
             resetForm();
-            fetchData();
         } catch (err: any) {
-            const msg = err?.response?.data?.message || 'Failed to submit report';
+            const msg = err?.response?.data?.message || err?.message || 'Failed to submit report';
             toast.error(t('common.error'), msg);
         } finally {
             setIsSubmitting(false);

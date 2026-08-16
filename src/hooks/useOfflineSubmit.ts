@@ -3,7 +3,7 @@ import { addToSyncQueue } from '../storage/localDB';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_BASE_URL } from '../services/api';
 
-export function useOfflineSubmit(type: string, endpoint: string) {
+export function useOfflineSubmit(type: string, endpoint: string, method: 'POST' | 'PATCH' = 'POST') {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'queued' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +19,7 @@ export function useOfflineSubmit(type: string, endpoint: string) {
       const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
+        method,
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',

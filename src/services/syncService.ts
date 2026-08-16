@@ -13,7 +13,7 @@ const SYNC_HANDLERS: Record<string, { method: string, endpoint: string | ((paylo
   HELP_REQUEST:          { method: 'POST',  endpoint: '/help-requests' },
   DAMAGE_ASSESSMENT:     { method: 'POST',  endpoint: '/assessments/damage' },
   PSYCHOLOGICAL_SUPPORT: { method: 'POST',  endpoint: '/psychological-support' },
-  TASK_STATUS_UPDATE:    { method: 'PATCH', endpoint: '/volunteers/tasks/status' },
+  TASK_STATUS_UPDATE:    { method: 'PATCH', endpoint: (p: any) => `/volunteers/tasks/${p.taskId}/status` },
   REPORT_VERIFICATION:   { method: 'POST',  endpoint: '/help-requests/verifier/verify' },
   RELIEF_TOKEN_CLAIM:    { method: 'POST',  endpoint: '/relief-tokens/claim' },
   MISSING_PERSON_REPORT: { method: 'POST',  endpoint: '/missing-persons' },
