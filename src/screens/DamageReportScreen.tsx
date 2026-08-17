@@ -56,7 +56,7 @@ export default function DamageReportScreen() {
     const [structuralDamage, setStructuralDamage] = useState(INITIAL_STRUCTURAL);
     const [description, setDescription]           = useState('');
     const [hasInsurance, setHasInsurance]         = useState(false);
-    const [photos, setPhotos]                     = useState<string[]>([]);
+    const [photos, setPhotos]                     = useState<{ uri: string; base64: string }[]>([]);
     const [loading, setLoading]                   = useState(false);
     const [submitted, setSubmitted]               = useState<SubmittedRecord | null>(null);
 
@@ -84,9 +84,9 @@ export default function DamageReportScreen() {
                             Alert.alert('Permission needed', 'Please allow camera access to take photos.');
                             return;
                         }
-                        const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: true, aspect: [4, 3] });
+                        const result = await ImagePicker.launchCameraAsync({ quality: 0.5, allowsEditing: true, aspect: [4, 3], base64: true });
                         if (!result.canceled && result.assets[0]) {
-                            setPhotos(prev => [...prev, result.assets[0].uri]);
+                            setPhotos(prev => [...prev, { uri: result.assets[0].uri, base64: result.assets[0].base64 || '' }]);
                         }
                     },
                 },
@@ -98,9 +98,9 @@ export default function DamageReportScreen() {
                             Alert.alert('Permission needed', 'Please allow photo library access.');
                             return;
                         }
-                        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7, allowsEditing: true, aspect: [4, 3] });
+                        const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.5, allowsEditing: true, aspect: [4, 3], base64: true });
                         if (!result.canceled && result.assets[0]) {
-                            setPhotos(prev => [...prev, result.assets[0].uri]);
+                            setPhotos(prev => [...prev, { uri: result.assets[0].uri, base64: result.assets[0].base64 || '' }]);
                         }
                     },
                 },
@@ -125,6 +125,10 @@ export default function DamageReportScreen() {
 
             const locationLabel = userLocation ? 'Current Location' : 'Unknown Location';
 
+            const mediaUrls = photos
+                .filter(p => p.base64)
+                .map(p => `data:image/jpeg;base64,${p.base64}`);
+
             const data = {
                 category: selectedType,
                 notes: description,
@@ -133,7 +137,7 @@ export default function DamageReportScreen() {
                 longitude: userLocation?.coords.longitude ?? 79.8612,
                 structuralDamage,
                 estimatedLoss: 0,
-                mediaUrls: [],
+                mediaUrls,
             };
 
             const result = await submit(data);
@@ -148,7 +152,7 @@ export default function DamageReportScreen() {
                 structuralLabel: t(levelInfo.labelKey) || levelInfo.fallback,
                 notes: description,
                 location: locationLabel,
-                photos: [...photos],
+                photos: photos.map(p => p.uri),
                 submittedAt: new Date(),
                 queued: !!result.queued,
             });
@@ -300,7 +304,7 @@ export default function DamageReportScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        onPress={() => navigation.navigate('Home')}
+                        onPress={() => navigation.navigate('HomeScreen')}
                         activeOpacity={0.7}
                         style={{
                             borderRadius: 20,
@@ -423,11 +427,11 @@ export default function DamageReportScreen() {
 
                 {photos.length > 0 && (
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
-                        {photos.map(uri => (
-                            <View key={uri} style={{ width: 90, height: 90, borderRadius: 14, overflow: 'hidden', marginRight: 10, marginBottom: 10 }}>
-                                <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                        {photos.map((photo, idx) => (
+                            <View key={photo.uri} style={{ width: 90, height: 90, borderRadius: 14, overflow: 'hidden', marginRight: 10, marginBottom: 10 }}>
+                                <Image source={{ uri: photo.uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                                 <TouchableOpacity
-                                    onPress={() => setPhotos(prev => prev.filter(p => p !== uri))}
+                                    onPress={() => setPhotos(prev => prev.filter((_, i) => i !== idx))}
                                     style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, padding: 2 }}
                                 >
                                     <X size={14} color="white" />

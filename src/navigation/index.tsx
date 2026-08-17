@@ -7,6 +7,7 @@ import { Home, AlertTriangle, Bell, ClipboardList, User } from 'lucide-react-nat
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import OfflineBanner from '../components/OfflineBanner';
+import ChatFAB from '../components/ChatFAB';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -245,6 +246,7 @@ export default function AppNavigation() {
     const [isLoading, setIsLoading] = React.useState(true);
     const [userRole, setUserRole] = React.useState<UserRole>('CITIZEN');
     const [initialRoute, setInitialRoute] = React.useState<'Login' | 'MainTabs'>('Login');
+    const [isLoggedIn, setIsLoggedIn] = React.useState(false);
     const navigationRef = useRef<any>(null);
     const appState = useRef(AppState.currentState);
     const [locationGranted, setLocationGranted] = React.useState(false);
@@ -285,7 +287,7 @@ export default function AppNavigation() {
 
                 // If a valid session exists, skip the Login screen entirely
                 const sessionValid = await hasValidSession();
-                if (sessionValid) setInitialRoute('MainTabs');
+                if (sessionValid) { setInitialRoute('MainTabs'); setIsLoggedIn(true); }
             } catch {}
             finally {
                 setIsLoading(false);
@@ -377,18 +379,18 @@ export default function AppNavigation() {
         <LocationProvider value={{ userLocation, userDistrict }}>
         <View style={{ flex: 1 }}>
             <OfflineBanner />
+            <ChatFAB navigationRef={navigationRef} loggedIn={isLoggedIn} />
             <NavigationContainer
                 ref={navigationRef}
                 linking={linking}
                 onStateChange={async () => {
-                    // Re-sync role from AsyncStorage on every navigation change.
-                    // This ensures that after login (which saves role then navigates),
-                    // the UserProvider immediately gets the correct role.
                     const stored = await AsyncStorage.getItem('user');
+                    const token = await AsyncStorage.getItem('token');
                     if (stored) {
                         const role = (JSON.parse(stored).role as UserRole) || 'CITIZEN';
                         setUserRole(role);
                     }
+                    setIsLoggedIn(!!token);
                 }}
             >
                 <Stack.Navigator

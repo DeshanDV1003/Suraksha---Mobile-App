@@ -14,6 +14,7 @@ import { registerForPushNotificationsAsync } from '../services/notificationServi
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -76,6 +77,14 @@ async function saveOfflineCredentials(email: string, password: string, user: any
     } catch {}
 }
 
+// Replace with your actual Google OAuth client IDs from Google Cloud Console.
+// Android client ID:  Create an "Android" OAuth client → use package com.deshandvsteam.suraksha
+// iOS client ID:      Create an "iOS" OAuth client → use your bundle identifier
+// Web client ID:      Create a "Web application" OAuth client (required for expo-auth-session)
+const GOOGLE_ANDROID_CLIENT_ID = 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_IOS_CLIENT_ID     = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_WEB_CLIENT_ID     = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
+
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
@@ -87,6 +96,30 @@ export default function LoginScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
     const passwordRef = useRef<TextInput>(null);
+
+    const [_googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
+        androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+        iosClientId:     GOOGLE_IOS_CLIENT_ID,
+        webClientId:     GOOGLE_WEB_CLIENT_ID,
+        scopes: ['openid', 'profile', 'email'],
+    });
+
+    useEffect(() => {
+        if (googleResponse?.type === 'success') {
+            const idToken = googleResponse.authentication?.idToken;
+            if (idToken) {
+                setGoogleLoading(true);
+                handleGoogleToken(idToken);
+            } else {
+                Alert.alert('Sign-In Failed', 'Google did not return an ID token. Please try again.');
+            }
+        } else if (googleResponse?.type === 'error') {
+            setGoogleLoading(false);
+            Alert.alert('Sign-In Failed', googleResponse.error?.message ?? 'Google sign-in encountered an error.');
+        } else if (googleResponse?.type === 'dismiss' || googleResponse?.type === 'cancel') {
+            setGoogleLoading(false);
+        }
+    }, [googleResponse]);
 
     const [recentAccounts, setRecentAccounts] = useState<RecentAccount[]>([]);
     const [accountPics, setAccountPics] = useState<Record<string, string | null>>({});
@@ -400,7 +433,10 @@ export default function LoginScreen() {
                                     <View style={{ flex: 1, height: 1, backgroundColor: '#E2E8F0' }} />
                                 </View>
                                 <TouchableOpacity
-                                    onPress={() => Alert.alert('Google Sign-In', 'Coming soon in the app build.')}
+                                    onPress={() => {
+                                        setGoogleLoading(true);
+                                        promptGoogleAsync().catch(() => setGoogleLoading(false));
+                                    }}
                                     disabled={loading || googleLoading}
                                     activeOpacity={0.85}
                                     style={{
