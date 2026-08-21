@@ -239,6 +239,7 @@ export default function ProfileScreen() {
                 { compress: 0.7, format: SaveFormat.JPEG, base64: true }
             );
 
+            if (!manipulated.base64) throw new Error('Image processing returned no data');
             const dataUri = `data:image/jpeg;base64,${manipulated.base64}`;
             setProfilePicture(dataUri);
             const uid = (await AsyncStorage.getItem('user').then(s => s ? JSON.parse(s).id : null));

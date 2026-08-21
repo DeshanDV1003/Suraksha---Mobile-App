@@ -129,14 +129,15 @@ function MainTabNavigator() {
 
         // Listen for real-time alerts via socket and show a local notification
         // Local notifications work in both Expo Go and APK builds
-        socketService.on('new-alert', (alert: any) => {
+        const onNewAlert = (alert: any) => {
             const title = `🚨 ${alert.title || 'Emergency Alert'}`;
             const body = alert.message || '';
             showLocalNotification(title, body);
             setUnreadAlerts(prev => prev + 1);
-        });
+        };
+        socketService.on('new-alert', onNewAlert);
 
-        return () => clearInterval(interval);
+        return () => { clearInterval(interval); socketService.off('new-alert', onNewAlert); };
     }, []);
 
     return (
@@ -253,6 +254,7 @@ export default function AppNavigation() {
     const [userLocation, setUserLocation] = React.useState<UserLocation | null>(null);
     const [userDistrict, setUserDistrict] = React.useState<string | null>(null);
 
+    // One-time startup: restore language, location, session — runs exactly once on mount
     React.useEffect(() => {
         const init = async () => {
             try {
@@ -295,18 +297,6 @@ export default function AppNavigation() {
         };
         init();
 
-        // Volunteer GPS tracking — send location every 30s when role is set and field-eligible
-        let gpsInterval: ReturnType<typeof setInterval> | null = null;
-        if (['VOLUNTEER', 'FIELD_RESPONDER'].includes(userRole) && userRole !== 'CITIZEN') {
-            gpsInterval = setInterval(async () => {
-                try {
-                    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-                    locationService.logLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }).catch(() => {});
-                    setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-                } catch {}
-            }, 30_000);
-        }
-
         // When app returns from background: stay put if session is valid, redirect to Login only when expired
         const subscription = AppState.addEventListener('change', async nextState => {
             if (appState.current === 'background' && nextState === 'active') {
@@ -320,7 +310,20 @@ export default function AppNavigation() {
             appState.current = nextState;
         });
 
-        return () => { subscription.remove(); if (gpsInterval) clearInterval(gpsInterval); };
+        return () => { subscription.remove(); };
+    }, []);
+
+    // GPS tracking interval — restarts whenever userRole changes (e.g. after login)
+    React.useEffect(() => {
+        if (!['VOLUNTEER', 'FIELD_RESPONDER'].includes(userRole)) return;
+        const gpsInterval = setInterval(async () => {
+            try {
+                const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                locationService.logLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }).catch(() => {});
+                setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            } catch {}
+        }, 30_000);
+        return () => clearInterval(gpsInterval);
     }, [userRole]);
 
     if (isLoading) {

@@ -22,6 +22,12 @@ class SocketService {
     this.socket.on(event, callback);
   }
 
+  off(event: string, callback?: (data: any) => void) {
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
+  }
+
   emit(event: string, data: any) {
     if (!this.socket) this.connect();
     this.socket.emit(event, data);

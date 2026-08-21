@@ -6,7 +6,7 @@ import { Header } from '../components/common/Header';
 import { TaskItemCard } from '../components/TasksScreen/TaskItemCard';
 import { volunteerService } from '../services/api';
 import { useToast } from '../context/ToastContext';
-import { useOfflineSubmit } from '../hooks/useOfflineSubmit';
+import { addToSyncQueue } from '../storage/localDB';
 import { ClipboardX, Clock, Play, CheckCircle2 } from 'lucide-react-native';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -21,7 +21,6 @@ export default function TasksScreen() {
     const [loading, setLoading] = React.useState(true);
     const [refreshing, setRefreshing] = React.useState(false);
     const [updatingId, setUpdatingId] = React.useState<string | null>(null);
-    const { submit: submitTaskOffline } = useOfflineSubmit('TASK_STATUS_UPDATE', '', 'PATCH');
     const [activeTab, setActiveTab] = React.useState<TabFilter>('ALL');
 
     const fetchTasks = async (silent = false) => {
@@ -47,21 +46,25 @@ export default function TasksScreen() {
 
     const handleUpdateStatus = async (taskId: string, status: string) => {
         setUpdatingId(taskId);
+        const label = status === 'RESOLVED' ? 'Task marked as completed'
+            : status === 'IN_PROGRESS' ? 'Task accepted'
+            : 'Task returned to queue';
         try {
-            // endpoint is dynamic — syncService resolves /volunteers/tasks/${taskId}/status from payload
-            const result = await submitTaskOffline({ taskId, status });
-            const label = status === 'RESOLVED' ? 'Task marked as completed'
-                : status === 'IN_PROGRESS' ? 'Task accepted'
-                : 'Task returned to queue';
-            if (result.queued) {
+            await volunteerService.updateTaskStatus(taskId, status);
+            success(label, '');
+            await fetchTasks(true);
+        } catch (err: any) {
+            const isNetworkError =
+                err?.message === 'Network request failed' ||
+                err?.name === 'AbortError' ||
+                err?.code === 'ECONNREFUSED';
+            if (isNetworkError) {
+                await addToSyncQueue('TASK_STATUS_UPDATE', { taskId, status });
                 success('Queued', 'Task update saved — will sync when you reconnect.');
             } else {
-                success(label, '');
-                await fetchTasks(true);
+                const msg = err?.response?.data?.message || err?.message || 'Failed to update task';
+                showError('Update failed', msg);
             }
-        } catch (err: any) {
-            const msg = err?.response?.data?.message || err?.message || 'Failed to update task';
-            showError('Update failed', msg);
         } finally {
             setUpdatingId(null);
         }

@@ -80,10 +80,8 @@ async function saveOfflineCredentials(email: string, password: string, user: any
 // Replace with your actual Google OAuth client IDs from Google Cloud Console.
 // Android client ID:  Create an "Android" OAuth client → use package com.deshandvsteam.suraksha
 // iOS client ID:      Create an "iOS" OAuth client → use your bundle identifier
-// Web client ID:      Create a "Web application" OAuth client (required for expo-auth-session)
-const GOOGLE_ANDROID_CLIENT_ID = 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com';
-const GOOGLE_IOS_CLIENT_ID     = 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com';
-const GOOGLE_WEB_CLIENT_ID     = 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com';
+// Web client ID from Google Cloud Console (same project as the web app)
+const GOOGLE_WEB_CLIENT_ID = '925196185976-51jmaejfdu6ig4iq8o1uu7u0m8oqtiuf.apps.googleusercontent.com';
 
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
@@ -98,9 +96,7 @@ export default function LoginScreen() {
     const passwordRef = useRef<TextInput>(null);
 
     const [_googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
-        androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-        iosClientId:     GOOGLE_IOS_CLIENT_ID,
-        webClientId:     GOOGLE_WEB_CLIENT_ID,
+        webClientId: GOOGLE_WEB_CLIENT_ID,
         scopes: ['openid', 'profile', 'email'],
     });
 

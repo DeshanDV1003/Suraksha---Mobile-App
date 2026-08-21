@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { ScrollView, View, Text, TouchableOpacity, StatusBar, Alert, ActivityIndicator, Vibration } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
@@ -98,7 +98,7 @@ export default function HomeScreen() {
         );
     };
 
-    const fetchStats = async () => {
+    const fetchStats = useCallback(async () => {
         // 1. Show cached data immediately — no waiting
         const stored = await AsyncStorage.getItem('user');
         if (stored) setUserName(JSON.parse(stored)?.name?.split(' ')[0] || '');
@@ -131,12 +131,12 @@ export default function HomeScreen() {
                 setCache('home_alerts', top3);
             }
         } catch {}
-    };
+    }, [userLocation]);
 
     useFocusEffect(
-        React.useCallback(() => {
+        useCallback(() => {
             fetchStats();
-        }, [])
+        }, [fetchStats])
     );
 
     // Citizen-relevant stats: their own reports + nearby alerts
@@ -272,7 +272,7 @@ export default function HomeScreen() {
                                 report.status === 'ASSIGNED' ? 'assigned' :
                                 report.status === 'RESOLVED' ? 'resolved' : 'pending'
                             }
-                            reportId={`#${report.id.substring(0, 8)}`}
+                            reportId={`#${report.id?.substring(0, 8) ?? 'unknown'}`}
                         />
                     ))
                 )}

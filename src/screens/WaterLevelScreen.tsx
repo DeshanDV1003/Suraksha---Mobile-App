@@ -263,7 +263,7 @@ export default function WaterLevelScreen() {
             ]);
 
             const latestPerGauge = new Map<string, RiverLevel>();
-            for (const r of (riverRes.data as RiverLevel[])) {
+            for (const r of (Array.isArray(riverRes.data) ? riverRes.data as RiverLevel[] : [])) {
                 const existing = latestPerGauge.get(r.gaugeId);
                 if (!existing || new Date(r.recordedAt) > new Date(existing.recordedAt)) {
                     latestPerGauge.set(r.gaugeId, r);
@@ -275,7 +275,7 @@ export default function WaterLevelScreen() {
             );
 
             const latestRain = new Map<string, RainfallReading>();
-            for (const r of (rainRes.data as RainfallReading[])) {
+            for (const r of (Array.isArray(rainRes.data) ? rainRes.data as RainfallReading[] : [])) {
                 const existing = latestRain.get(r.stationName);
                 if (!existing || new Date(r.recordedAt) > new Date(existing.recordedAt)) {
                     latestRain.set(r.stationName, r);
