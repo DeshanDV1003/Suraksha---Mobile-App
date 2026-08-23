@@ -49,11 +49,14 @@ Write-Host "   Done." -ForegroundColor Green
 # 4. ngrok tunnels with static domains
 Write-Host "[4/5] Starting ngrok tunnels (static domains)..." -ForegroundColor Yellow
 
+# Refresh PATH so ngrok is found even right after a fresh install
+$env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+
 # API tunnel — Account 1 (default config)
-Start-Process powershell -ArgumentList "-NoExit -Command ngrok http --domain=$API_DOMAIN 3001" -WindowStyle Minimized
+Start-Process powershell -ArgumentList "-NoExit -Command `$env:PATH = [System.Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('PATH','User'); ngrok http --domain=$API_DOMAIN 3001" -WindowStyle Minimized
 
 # Socket tunnel — Account 2 (separate config file)
-Start-Process powershell -ArgumentList "-NoExit -Command ngrok http --config='C:\Users\ACER\AppData\Local\ngrok\ngrok2.yml' --domain=$SOCK_DOMAIN 3002" -WindowStyle Minimized
+Start-Process powershell -ArgumentList "-NoExit -Command `$env:PATH = [System.Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('PATH','User'); ngrok http --config='C:\Users\ACER\AppData\Local\ngrok\ngrok2.yml' --domain=$SOCK_DOMAIN 3002" -WindowStyle Minimized
 
 Start-Sleep -Seconds 3
 Write-Host "   API    : https://$API_DOMAIN/api" -ForegroundColor Cyan

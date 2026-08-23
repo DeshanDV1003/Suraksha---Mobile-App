@@ -24,12 +24,15 @@ import { LocationProvider, UserLocation } from './src/context/LocationContext';
 const queryClient = new QueryClient();
 
 import { io } from 'socket.io-client';
+import { API_BASE_URL } from './src/config';
 
 function GlobalMobileAlertListener() {
   const userCoords = React.useRef<{ lat: number; lng: number } | null>(null);
 
   React.useEffect(() => {
-    const alertSocket = io('http://192.168.8.121:3001');
+    // Use the ngrok API URL base (strip /api) for the web backend socket connection
+    const webBackendSocket = API_BASE_URL.replace(/\/api$/, '');
+    const alertSocket = io(webBackendSocket);
     let locationSubscription: any;
 
     const setupLocationTracking = async () => {
