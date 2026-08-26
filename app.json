@@ -13,30 +13,86 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Suraksha needs your location to show nearby alerts, safe zones, and relief camps.",
+        "NSLocationAlwaysUsageDescription": "Suraksha uses your location in the background to send emergency alerts relevant to your area.",
+        "NSCameraUsageDescription": "Suraksha needs camera access to upload damage report photos.",
+        "NSPhotoLibraryUsageDescription": "Suraksha needs photo library access to upload damage report photos."
+      }
     },
     "android": {
       "package": "com.deshandvsteam.suraksha",
-      "versionCode": 2,
-      "config": {
-        "googleMaps": {
-          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
-        }
-      },
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "ACCESS_NETWORK_STATE",
+        "INTERNET",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "data": [
+            {
+              "scheme": "com.deshandvsteam.suraksha"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Suraksha needs your location to show nearby alerts, safe zones, and relief camps.",
+          "locationWhenInUsePermission": "Suraksha needs your location to show nearby alerts, safe zones, and relief camps."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1E3A8A",
+          "sounds": []
+        }
+      ],
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Suraksha needs camera access to upload damage report photos."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Suraksha needs photo library access to upload damage report photos."
+        }
+      ],
+      "expo-background-fetch",
+      "expo-task-manager",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

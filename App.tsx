@@ -3,7 +3,7 @@ import './src/utils/suppressDevWarnings';
 import React from 'react';
 import { Provider as PaperProvider, MD3LightTheme } from 'react-native-paper';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Platform, View, StyleSheet } from 'react-native';
+import { Platform, View, StyleSheet, Text, ScrollView, TouchableOpacity } from 'react-native';
 import './src/i18n';
 import './src/global.css';
 import AppNavigation from './src/navigation';
@@ -20,11 +20,65 @@ import { Alert } from 'react-native';
 import geohash from 'ngeohash';
 import { isAlertNearby } from './src/utils/distance';
 import { LocationProvider, UserLocation } from './src/context/LocationContext';
+import { io } from 'socket.io-client';
+import { API_BASE_URL } from './src/config';
 
 const queryClient = new QueryClient();
 
-import { io } from 'socket.io-client';
-import { API_BASE_URL } from './src/config';
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+// Catches any render/effect crash and shows the error instead of silently closing
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[ErrorBoundary] App crashed:', error.message, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#0F172A', padding: 24, justifyContent: 'center' }}>
+          <Text style={{ color: '#EF4444', fontSize: 20, fontWeight: '900', marginBottom: 12 }}>
+            ⚠️ App Error
+          </Text>
+          <Text style={{ color: '#F1F5F9', fontSize: 13, marginBottom: 8 }}>
+            {this.state.error?.message || 'Unknown error'}
+          </Text>
+          <ScrollView style={{ maxHeight: 300, backgroundColor: '#1E293B', borderRadius: 12, padding: 12, marginBottom: 20 }}>
+            <Text style={{ color: '#94A3B8', fontSize: 11, fontFamily: 'monospace' }}>
+              {this.state.error?.stack || ''}
+            </Text>
+          </ScrollView>
+          <TouchableOpacity
+            style={{ backgroundColor: '#2563EB', padding: 16, borderRadius: 12, alignItems: 'center' }}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={{ color: 'white', fontWeight: '700' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ─── Global Alert Listener ────────────────────────────────────────────────────
 
 function GlobalMobileAlertListener() {
   const userCoords = React.useRef<{ lat: number; lng: number } | null>(null);
@@ -32,8 +86,19 @@ function GlobalMobileAlertListener() {
   React.useEffect(() => {
     // Use the ngrok API URL base (strip /api) for the web backend socket connection
     const webBackendSocket = API_BASE_URL.replace(/\/api$/, '');
-    const alertSocket = io(webBackendSocket);
+    let alertSocket: ReturnType<typeof io> | null = null;
     let locationSubscription: any;
+
+    try {
+      alertSocket = io(webBackendSocket, {
+        transports: ['websocket', 'polling'],
+        timeout: 10000,
+        reconnectionAttempts: 3,
+      });
+    } catch (err) {
+      console.warn('[GlobalAlertListener] Failed to connect socket:', err);
+      return;
+    }
 
     const setupLocationTracking = async () => {
       try {
@@ -47,7 +112,7 @@ function GlobalMobileAlertListener() {
             const lng = location.coords.longitude;
             userCoords.current = { lat, lng };
             const sectorId = geohash.encode(lat, lng, 5);
-            alertSocket.emit('join_sector', sectorId);
+            alertSocket?.emit('join_sector', sectorId);
           }
         );
       } catch (err) {
@@ -94,7 +159,7 @@ function GlobalMobileAlertListener() {
 
     return () => {
       locationSubscription?.remove();
-      alertSocket.disconnect();
+      alertSocket?.disconnect();
     };
   }, []);
 
@@ -153,29 +218,31 @@ export default function App() {
     initialized.current = true;
 
     async function init() {
-      await openDatabase();
-      await startNetworkMonitoring();
-      await registerBackgroundSync();  // no-op in Expo Go
-      await preloadCriticalData();
-      await registerForPushNotificationsAsync();  // no-op in Expo Go
+      try { await openDatabase(); } catch (e) { console.warn('[Init] openDatabase failed:', e); }
+      try { await startNetworkMonitoring(); } catch (e) { console.warn('[Init] networkMonitor failed:', e); }
+      try { await registerBackgroundSync(); } catch (e) { console.warn('[Init] backgroundSync failed:', e); }
+      try { await preloadCriticalData(); } catch (e) { console.warn('[Init] preloadCriticalData failed:', e); }
+      try { await registerForPushNotificationsAsync(); } catch (e) { console.warn('[Init] pushNotifications failed:', e); }
     }
     init();
 
-    socketService.connect();
-    return () => socketService.disconnect();
+    try { socketService.connect(); } catch (e) { console.warn('[Init] socket connect failed:', e); }
+    return () => { try { socketService.disconnect(); } catch {} };
   }, []);
 
   const content = (
-    <LocationProvider value={{ userLocation, userDistrict }}>
-      <QueryClientProvider client={queryClient}>
-        <PaperProvider theme={theme}>
-          <GlobalMobileAlertListener />
-          <ToastProvider>
-            <AppNavigation />
-          </ToastProvider>
-        </PaperProvider>
-      </QueryClientProvider>
-    </LocationProvider>
+    <ErrorBoundary>
+      <LocationProvider value={{ userLocation, userDistrict }}>
+        <QueryClientProvider client={queryClient}>
+          <PaperProvider theme={theme}>
+            <GlobalMobileAlertListener />
+            <ToastProvider>
+              <AppNavigation />
+            </ToastProvider>
+          </PaperProvider>
+        </QueryClientProvider>
+      </LocationProvider>
+    </ErrorBoundary>
   );
 
   if (Platform.OS === 'web') {

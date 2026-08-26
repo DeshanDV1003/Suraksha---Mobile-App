@@ -6,9 +6,10 @@ import { API_BASE_URL } from '../config';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 5000, // 5 seconds
+  timeout: 10000, // 10 seconds
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true', // bypass ngrok interstitial page
   },
 });
 
@@ -19,6 +20,18 @@ api.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
+// Guard against ngrok interstitial HTML responses crashing JSON.parse
+api.interceptors.response.use(
+  (response) => {
+    const ct = response.headers?.['content-type'] || '';
+    if (ct.includes('text/html')) {
+      return Promise.reject(new Error('Received HTML instead of JSON — ngrok tunnel may not be running'));
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
 
 export const authService = {
   login: (data: any) => api.post('/auth/login', data),

@@ -15,13 +15,21 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
+import * as AuthSession from 'expo-auth-session';
+import Constants from 'expo-constants';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const IS_EXPO_GO =
-    Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
-    (Constants as any).appOwnership === 'expo';
+// Safe Expo Go detection — avoids crashing on ExecutionEnvironment enum
+const IS_EXPO_GO = (() => {
+    try {
+        return (Constants as any).appOwnership === 'expo' ||
+               (Constants as any).executionEnvironment === 'storeClient';
+    } catch { return false; }
+})();
+
+// Android OAuth Client ID from Google Cloud Console
+const ANDROID_CLIENT_ID = '925196185976-ompj0qc4rkdoev0dt3osdoske67s6alg.apps.googleusercontent.com';
 
 const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
@@ -95,10 +103,32 @@ export default function LoginScreen() {
     const [focusedField, setFocusedField] = useState<string | null>(null);
     const passwordRef = useRef<TextInput>(null);
 
+    // Google's Android OAuth client validates redirect URIs as:
+    // com.package.name:/path  (single slash — NOT double slash)
+    // The intent filter in app.json registers this scheme so Android can
+    // intercept the redirect and return control back to the app.
+    const redirectUri = Platform.OS === 'android'
+        ? 'com.deshandvsteam.suraksha:/oauth2redirect/google'
+        : AuthSession.makeRedirectUri({ scheme: 'suraksha' });
+
     const [_googleRequest, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
         webClientId: GOOGLE_WEB_CLIENT_ID,
         scopes: ['openid', 'profile', 'email'],
+        androidClientId: ANDROID_CLIENT_ID ?? '',
+        redirectUri,
     });
+
+    const handleGooglePress = () => {
+        if (Platform.OS === 'android' && !ANDROID_CLIENT_ID) {
+            Alert.alert(
+                'Google Sign-In Not Available',
+                'Google sign-in is not configured for Android yet. Please use email and password to log in.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+        promptGoogleAsync();
+    };
 
     useEffect(() => {
         if (googleResponse?.type === 'success') {
@@ -431,7 +461,7 @@ export default function LoginScreen() {
                                 <TouchableOpacity
                                     onPress={() => {
                                         setGoogleLoading(true);
-                                        promptGoogleAsync().catch(() => setGoogleLoading(false));
+                                        handleGooglePress();
                                     }}
                                     disabled={loading || googleLoading}
                                     activeOpacity={0.85}

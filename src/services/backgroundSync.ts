@@ -1,17 +1,20 @@
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
+import Constants from 'expo-constants';
 import { syncPendingItems } from './syncService';
 import { checkConnectivity } from './networkMonitor';
 
 const BACKGROUND_SYNC_TASK = 'SURAKSHA_BACKGROUND_SYNC';
 
-// expo-background-fetch does not work in Expo Go (SDK 53+).
-// Only register when running in a development build or production.
-const isExpoGo =
-    Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
-    // Fallback for older Expo versions
-    (Constants as any).appOwnership === 'expo';
+// Detect Expo Go safely — avoid crashing on ExecutionEnvironment enum differences
+const isExpoGo = (() => {
+    try {
+        return (Constants as any).appOwnership === 'expo' ||
+               (Constants as any).executionEnvironment === 'storeClient';
+    } catch {
+        return false;
+    }
+})();
 
 // Define task once at module load (TaskManager throws if defined twice)
 if (!isExpoGo) {

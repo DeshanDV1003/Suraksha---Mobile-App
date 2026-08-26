@@ -20,12 +20,12 @@ function notifyListeners(online: boolean) {
 export async function checkConnectivity() {
   try {
     const state = await Network.getNetworkStateAsync();
-    // isInternetReachable is null on Android when undetermined — treat null as online
-    // Only treat as offline when explicitly false
-    const online = state.isConnected && state.isInternetReachable !== false;
-    return !!online;
+    // isInternetReachable is unreliable on Android — it often returns false/null
+    // even on a working connection (e.g., captive portals, VPNs, cellular).
+    // Use isConnected (WiFi/cellular link) as the source of truth.
+    return state.isConnected === true;
   } catch {
-    return false;
+    return true; // assume online on error to prevent a false offline banner
   }
 }
 

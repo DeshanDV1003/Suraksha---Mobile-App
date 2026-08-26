@@ -5,9 +5,14 @@ import { API_BASE_URL } from './api';
 async function apiFetch(path: string) {
   const token = await getToken();
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'ngrok-skip-browser-warning': 'true', // bypass ngrok interstitial page
+    }
   });
   if (!res.ok) throw new Error(`Failed to fetch ${path}: ${res.status}`);
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('text/html')) throw new Error(`Got HTML for ${path} — ngrok tunnel may not be running`);
   return res.json();
 }
 
@@ -19,7 +24,7 @@ export async function preloadCriticalData() {
     const [incidents, alerts, camps] = await Promise.all([
       apiFetch(`/incidents${since}`).catch(() => null),
       apiFetch('/alerts').catch(() => null),
-      apiFetch('/relief-camps').catch(() => null),
+      apiFetch('/camps').catch(() => null),
     ]);
 
     if (Array.isArray(incidents)) await cacheIncidents(incidents);
